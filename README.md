@@ -2,7 +2,7 @@
 
 **Real-time screen vision for Windows** — high-FPS capture, YOLO detection, and a transparent assistive overlay.
 
-🌐 **[framesight.github.io]([https://jonahchang.github.io/FrameSight/](https://jonahchang207.github.io/FrameSight/))** · [Setup](SETUP.md) · [Train](TRAIN.md)
+🌐 **[framesight.github.io: https://jonahchang207.github.io/FrameSight/ ]([https://jonahchang.github.io/FrameSight/](https://jonahchang207.github.io/FrameSight/))** · [Setup](SETUP.md) · [Train](TRAIN.md)
 
 ## Quick start
 
