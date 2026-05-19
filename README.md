@@ -77,6 +77,18 @@ ValorantCV/
   runs/              # training outputs (gitignored)
 ```
 
+## Publish to GitHub
+
+One-time login, then create the remote repo and push:
+
+```bash
+gh auth login
+cd ValorantCV
+gh repo create ValorantCV --public --source=. --remote=origin --push
+```
+
+Replace `ValorantCV` with another name if you prefer. The dataset stays local (gitignored).
+
 ## Ethics
 
 Use only where permitted. Many games restrict third-party overlays in competitive play.
