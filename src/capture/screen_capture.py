@@ -21,7 +21,7 @@ def create_capture(
     target_fps: int = 165,
 ) -> "ScreenCapture":
     if sys.platform != "win32":
-        raise OSError("ValorantCV capture requires Windows 10/11.")
+        raise OSError("FrameSight capture requires Windows 10/11.")
     from src.capture.win_capture import WinScreenCapture
 
     return WinScreenCapture(

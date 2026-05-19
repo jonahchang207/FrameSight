@@ -2,21 +2,21 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "ValorantCV: Setup (Windows)",
+      "label": "FrameSight: Setup (Windows)",
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/setup_windows.ps1",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },
     {
-      "label": "ValorantCV: Train (Windows)",
+      "label": "FrameSight: Train (Windows)",
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/train.ps1",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },
     {
-      "label": "ValorantCV: Run overlay",
+      "label": "FrameSight: Run overlay",
       "type": "shell",
       "command": "powershell -ExecutionPolicy Bypass -File scripts/run.ps1",
       "options": { "cwd": "${workspaceFolder}" },

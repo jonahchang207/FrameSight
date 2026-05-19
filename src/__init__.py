@@ -1,1 +1,1 @@
-"""ValorantCV — high-FPS screen capture + YOLO detection overlay."""
+"""FrameSight — high-FPS screen capture + YOLO detection overlay."""

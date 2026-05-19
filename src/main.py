@@ -1,5 +1,5 @@
 """
-ValorantCV live detector — Windows only.
+FrameSight live detector — Windows only.
 
 Usage (from repo root on Windows):
   python -m src.main
@@ -13,14 +13,14 @@ import time
 from pathlib import Path
 
 if sys.platform != "win32":
-    print("ValorantCV requires Windows 10/11 for capture and overlay.")
+    print("FrameSight requires Windows 10/11 for capture and overlay.")
     sys.exit(1)
 
 from src.capture.screen_capture import create_capture
 from src.config_loader import ROOT, load_config
 from src.inference.detector import YoloDetector
 from src.overlay.overlay_window import OverlayApp
-from src.pipeline import ValorantCVPipeline
+from src.pipeline import FrameSightPipeline
 
 
 def _resolve_weights(cfg: dict) -> Path:
@@ -87,7 +87,7 @@ def main() -> int:
         )
         overlay.show()
 
-    pipeline = ValorantCVPipeline(
+    pipeline = FrameSightPipeline(
         capture=capture,
         detector=detector,
         overlay=overlay,
@@ -104,7 +104,7 @@ def main() -> int:
     signal.signal(signal.SIGINT, _on_sig)
     signal.signal(signal.SIGTERM, _on_sig)
 
-    print("ValorantCV running (Windows). Ctrl+C to quit.")
+    print("FrameSight running (Windows). Ctrl+C to quit.")
     print(f"  Weights: {weights}")
     print(f"  Region: {w}x{h} at ({left}, {top})")
 

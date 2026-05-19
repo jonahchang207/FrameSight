@@ -11,7 +11,7 @@ import tkinter as tk
 from typing import Dict, List, Tuple
 
 if sys.platform != "win32":
-    raise ImportError("ValorantCV overlay requires Windows")
+    raise ImportError("FrameSight overlay requires Windows")
 
 from src.inference.detector import Detection
 

@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-Write-Host "ValorantCV — Windows setup" -ForegroundColor Cyan
+Write-Host "FrameSight — Windows setup" -ForegroundColor Cyan
 
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     throw "Python not found. Install Python 3.10+ from https://www.python.org/ (check Add to PATH)."

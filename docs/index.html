@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="FrameSight — Windows real-time screen vision with YOLO. High-FPS capture, GPU inference, and assistive overlay." />
+  <title>FrameSight — Real-Time Screen Vision</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="mesh" aria-hidden="true"></canvas>
+
+  <nav class="nav">
+    <a class="logo" href="#">Frame<span>Sight</span></a>
+    <div class="nav-links" id="navLinks">
+      <a href="#features">Features</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#tech">Stack</a>
+      <a href="#ethics">Ethics</a>
+      <a class="btn-nav" id="githubLink" href="#" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <button class="menu-btn" aria-label="Menu" id="menuBtn">☰</button>
+  </nav>
+
+  <header class="hero">
+    <p class="eyebrow reveal">Windows · Research · Assistive technology</p>
+    <h1 class="hero-title reveal">
+      See the screen.<br />
+      <span id="typed"></span><span class="cursor">|</span>
+    </h1>
+    <p class="hero-sub reveal">
+      FrameSight captures your display at up to <strong>165 Hz</strong>, runs <strong>YOLO11n</strong> on the GPU,
+      and draws a transparent, click-through overlay — built for accessibility research and visual assistance.
+    </p>
+    <div class="hero-cta reveal">
+      <a class="btn primary" id="setupLink" href="#">Get started</a>
+      <a class="btn ghost" href="#pipeline">How it works</a>
+    </div>
+    <div class="hero-stats reveal">
+      <div class="stat">
+        <span class="stat-val" data-target="165" data-suffix=" Hz">0</span>
+        <span class="stat-label">Capture target</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" data-target="2" data-suffix="">0</span>
+        <span class="stat-label">Object classes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" data-target="10075" data-suffix="">0</span>
+        <span class="stat-label">Training images</span>
+      </div>
+    </div>
+  </header>
+
+  <section id="features" class="section">
+    <h2 class="section-title reveal">Capabilities</h2>
+    <p class="section-lead reveal">A lean Windows stack — local inference, local overlay, no cloud required.</p>
+    <div class="grid cards">
+      <article class="card reveal">
+        <div class="card-icon">⚡</div>
+        <h3>High-FPS capture</h3>
+        <p>DXGI desktop duplication via <code>dxcam</code>. Stale frames are dropped so inference always uses the latest screen.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">🎯</div>
+        <h3>YOLO11n detection</h3>
+        <p>Ultralytics nano model tuned for speed. Train on custom classes — <code>enemy</code> and <code>enemy_head</code> included.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">🪟</div>
+        <h3>Win32 overlay</h3>
+        <p>Topmost, transparent, click-through window with per-class colors, labels, and confidence scores.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">🔧</div>
+        <h3>Train locally</h3>
+        <p>PowerShell setup and training scripts. Weights save to <code>weights/best.pt</code> — one command to run live.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">📊</div>
+        <h3>Async pipeline</h3>
+        <p>Separate capture, inference, and overlay threads with live FPS stats in the terminal.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">♿</div>
+        <h3>Assistive-first</h3>
+        <p>Built for accessibility research — visual cues, cueing, and HCI studies on live interfaces.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="pipeline" class="section section-dark">
+    <h2 class="section-title reveal">Pipeline</h2>
+    <div class="pipeline reveal">
+      <div class="pipe-step">
+        <span class="pipe-num">01</span>
+        <h4>Capture</h4>
+        <p>dxcam · full screen or ROI</p>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <span class="pipe-num">02</span>
+        <h4>Infer</h4>
+        <p>YOLO11n · newest frame wins</p>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <span class="pipe-num">03</span>
+        <h4>Overlay</h4>
+        <p>Win32 · live bounding boxes</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tech" class="section">
+    <h2 class="section-title reveal">Tech stack</h2>
+    <div class="badges reveal">
+      <span>Python 3.10+</span>
+      <span>Ultralytics YOLO11n</span>
+      <span>dxcam</span>
+      <span>OpenCV</span>
+      <span>Win32</span>
+      <span>CUDA</span>
+      <span>YAML</span>
+    </div>
+    <div class="code-block reveal">
+      <pre><code># Quick start (Windows)
+.\scripts\setup_windows.ps1
+.\scripts\train.ps1
+.\scripts\run.ps1</code></pre>
+    </div>
+  </section>
+
+  <section id="ethics" class="section section-ethics">
+    <h2 class="section-title reveal">Use responsibly</h2>
+    <p class="section-lead reveal">
+      FrameSight is for <strong>research and assistive technology</strong>. Many applications restrict third-party overlays —
+      verify terms of service and use offline or permitted environments for development.
+    </p>
+  </section>
+
+  <footer class="footer">
+    <p>FrameSight · <a id="footerGh" href="#">GitHub</a></p>
+    <p class="footer-links">
+      <a id="footerSetup" href="#">Setup guide</a>
+      ·
+      <a id="footerTrain" href="#">Training guide</a>
+    </p>
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

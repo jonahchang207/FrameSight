@@ -1,4 +1,4 @@
-# ValorantCV — assistive / research screen reader
+# FrameSight — assistive / research screen reader
 # Copy to config/local.yaml and override secrets (API keys) there.
 
 capture:

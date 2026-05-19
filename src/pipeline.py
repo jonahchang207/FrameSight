@@ -21,7 +21,7 @@ class PipelineStats:
     frames_inferred: int = 0
 
 
-class ValorantCVPipeline:
+class FrameSightPipeline:
     """
     Three-stage pipeline:
       1. Capture thread — grabs screen as fast as possible (target: 165 Hz)

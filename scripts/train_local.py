@@ -62,7 +62,7 @@ def main() -> int:
         patience=train_cfg.get("patience", 20),
         device=device,
         project=str(ROOT / "runs"),
-        name="valorantcv",
+        name="framesight",
         exist_ok=True,
     )
 
