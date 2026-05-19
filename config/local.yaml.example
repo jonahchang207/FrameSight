@@ -1,0 +1,5 @@
+# Optional overrides — copy to config/local.yaml
+
+# model:
+#   device: "0"
+#   conf: 0.4

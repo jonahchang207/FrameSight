@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+config/local.yaml
+data/dataset/
+fn.v1i.yolov8/
+fn.v1i.yolov8.zip
+weights/*.pt
+!weights/.gitkeep
+runs/
+*.zip
+.DS_Store

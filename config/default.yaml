@@ -1,0 +1,40 @@
+# ValorantCV — assistive / research screen reader
+# Copy to config/local.yaml and override secrets (API keys) there.
+
+capture:
+  # Target capture rate (Hz). Actual FPS depends on GPU, model, and monitor.
+  target_fps: 165
+  # Region: null = full primary monitor, or [left, top, width, height]
+  region: null
+  monitor_index: 1
+
+model:
+  # After Colab training, place best.pt here or set path to your export
+  weights: weights/best.pt
+  # Fast defaults: yolo11n.pt (nano) or yolov8n.pt
+  base_checkpoint: yolo11n.pt
+  imgsz: 640
+  conf: 0.35
+  iou: 0.45
+  device: "0"  # NVIDIA GPU on Windows; use "cpu" if no GPU
+
+overlay:
+  enabled: true
+  box_thickness: 2
+  colors:
+    default: [0, 255, 128]
+    enemy: [255, 64, 64]
+    enemy_head: [255, 200, 0]
+  show_labels: true
+  show_confidence: true
+
+dataset:
+  # Local Roboflow export (fn v1, YOLOv8)
+  local_dir: fn.v1i.yolov8
+  data_yaml: fn.v1i.yolov8/data.yaml
+
+training:
+  epochs: 100
+  batch: 16
+  patience: 20
+  names: ['enemy', 'enemy_head']
