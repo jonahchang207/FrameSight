@@ -50,6 +50,29 @@ on a separate thread against whatever frame is currently on screen and updates
 the latest boxes; the player draws those boxes on every displayed frame. The
 video plays smoothly at the source rate; boxes refresh at the inference rate.
 
+## Playback controls (files)
+
+When the source is a video file, the dashboard shows a transport bar under the
+video: **Play/Pause** and a **scrub** slider. Pausing stops decoding (no buffer
+burst on resume) and keeps re-drawing the held frame, so color/visibility edits
+still preview while paused. Scrubbing seeks the file and flushes the buffer.
+Streams have no defined length, so the transport bar is hidden for them.
+
+## Export an annotated video (files)
+
+Write a new video file with boxes burned in. Unlike live playback, the exporter
+runs inference on **every** frame, so every output frame has exact boxes.
+
+From the dashboard: click **Export annotated video** — progress shows inline and
+the output path is reported when done (`<name>_annotated.mp4` next to the source).
+
+From the CLI:
+
+```powershell
+python -m src.web.export --source "C:\path\to\clip.mp4"
+python -m src.web.export --source "C:\path\to\clip.mp4" --out "C:\out\labeled.mp4"
+```
+
 ## Settings
 
 The model and overlay defaults come from `config/default.yaml`

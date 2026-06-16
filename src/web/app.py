@@ -5,7 +5,9 @@ Run:
     python -m src.web.app --source https://www.twitch.tv/<channel>
 
 Opens http://127.0.0.1:8000 with the annotated overlay plus live controls for
-per-class colours, visibility, box thickness, labels, and a confidence filter.
+per-class colours, visibility, box thickness, labels, a confidence filter,
+play/pause + scrub (files), and an annotated-video export.
+
 The input is always decoded media (a file or stream URL) — not a live capture
 of your screen — and there is no forward/velocity prediction.
 """
@@ -13,35 +15,13 @@ of your screen — and there is no forward/velocity prediction.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-from typing import Any, Dict
 
-from src.config_loader import ROOT, load_config
-from src.inference.detector_factory import create_detector
+from src.config_loader import load_config
 from src.web.annotator import Annotator
+from src.web.detector_build import build_detector, class_names
+from src.web.export import ExportManager
 from src.web.render_settings import RenderSettings
 from src.web.video_source import BufferedVideoSource
-
-
-def _resolve_weights(cfg: Dict[str, Any]) -> Path:
-    weights = Path(cfg["model"]["weights"])
-    if not weights.is_absolute():
-        weights = ROOT / weights
-    if weights.exists():
-        return weights
-    return Path(cfg["model"].get("base_checkpoint", "yolo11n.pt"))
-
-
-def _class_names(detector, cfg: Dict[str, Any]) -> Dict[int, str]:
-    names = dict(getattr(detector, "names", {}) or {})
-    if names:
-        return names
-    # ONNX models may not expose names until first inference; fall back to the
-    # training names in config so the dashboard can list classes immediately.
-    training = cfg.get("training", {}).get("names")
-    if isinstance(training, list) and training:
-        return {i: str(n) for i, n in enumerate(training)}
-    return {0: "object"}
 
 
 def build_app(source: str, loop: bool, fps_override: float | None):
@@ -52,24 +32,12 @@ def build_app(source: str, loop: bool, fps_override: float | None):
     model_cfg = cfg["model"]
     overlay_cfg = cfg.get("overlay", {})
 
-    weights = _resolve_weights(cfg)
     # Infer at a low confidence floor so the dashboard's confidence slider can
     # reveal lower-confidence boxes live without rebuilding the detector.
     display_conf = float(model_cfg.get("conf", 0.35))
-    infer_conf = min(display_conf, 0.10)
-    detector = create_detector(
-        weights=weights,
-        imgsz=model_cfg.get("imgsz", 640),
-        conf=infer_conf,
-        iou=float(model_cfg.get("iou", 0.45)),
-        device_requested=model_cfg.get("device", "auto"),
-        max_det=int(model_cfg.get("max_det", 300)),
-        agnostic_nms=bool(model_cfg.get("agnostic_nms", False)),
-        half=bool(model_cfg.get("half", True)),
-        io_binding=bool(model_cfg.get("io_binding", False)),
-    )
+    detector = build_detector(cfg, conf=min(display_conf, 0.10))
 
-    names = _class_names(detector, cfg)
+    names = class_names(detector, cfg)
     colors_cfg = overlay_cfg.get("colors", {})
     class_colors = {
         k: v for k, v in colors_cfg.items() if k != "default" and isinstance(v, (list, tuple))
@@ -86,6 +54,7 @@ def build_app(source: str, loop: bool, fps_override: float | None):
 
     video = BufferedVideoSource(source, loop=loop, fps_override=fps_override)
     annotator = Annotator(detector, video, settings)
+    exporter = ExportManager(cfg)
 
     app = FastAPI(title="FrameSight Annotator")
 
@@ -120,6 +89,28 @@ def build_app(source: str, loop: bool, fps_override: float | None):
     @app.get("/api/stats")
     def get_stats() -> JSONResponse:
         return JSONResponse(annotator.stats())
+
+    @app.post("/api/playback")
+    async def post_playback(request: Request) -> JSONResponse:
+        payload = await request.json()
+        if "paused" in payload:
+            annotator.set_paused(bool(payload["paused"]))
+        if "seek" in payload:
+            annotator.seek_fraction(float(payload["seek"]))
+        return JSONResponse(annotator.stats())
+
+    @app.post("/api/export")
+    def post_export() -> JSONResponse:
+        if not video.is_file:
+            return JSONResponse(
+                {"error": "Export is only available for video files, not streams."},
+                status_code=400,
+            )
+        return JSONResponse(exporter.start(video.source_path, settings.snapshot()))
+
+    @app.get("/api/export/status")
+    def get_export_status() -> JSONResponse:
+        return JSONResponse(exporter.status())
 
     return app
 
@@ -163,6 +154,10 @@ _INDEX_HTML = """<!doctype html>
   .wrap { display: grid; grid-template-columns: 1fr 320px; gap: 18px; padding: 18px; align-items: start; }
   .video { background: #000; border: 1px solid #232a33; border-radius: 8px; overflow: hidden; }
   .video img { display: block; width: 100%; height: auto; }
+  .transport { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .transport button { background: #21262d; color: #e6edf3; border: 1px solid #313a45; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 14px; }
+  .transport button:hover { background: #2b333d; }
+  .transport input[type=range] { flex: 1; }
   .panel { background: #161b22; border: 1px solid #232a33; border-radius: 8px; padding: 16px; }
   .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #8b949e; margin: 0 0 12px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
@@ -174,6 +169,10 @@ _INDEX_HTML = """<!doctype html>
   .stats { font-variant-numeric: tabular-nums; font-size: 13px; color: #9da7b3; line-height: 1.7; }
   .stats b { color: #e6edf3; font-weight: 600; }
   .divider { height: 1px; background: #232a33; margin: 14px 0; }
+  button.export { width: 100%; background: #1f6feb; border: none; color: #fff; padding: 9px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.export:hover { background: #2a7bf6; }
+  button.export:disabled { background: #30363d; color: #8b949e; cursor: default; }
+  .exportmsg { font-size: 13px; color: #9da7b3; margin-top: 8px; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -182,7 +181,14 @@ _INDEX_HTML = """<!doctype html>
   <span class=\"sub\">video / stream overlay &middot; localhost</span>
 </header>
 <div class=\"wrap\">
-  <div class=\"video\"><img id=\"view\" src=\"/stream.mjpg\" alt=\"annotated stream\" /></div>
+  <div>
+    <div class=\"video\"><img id=\"view\" src=\"/stream.mjpg\" alt=\"annotated stream\" /></div>
+    <div class=\"transport\" id=\"transport\" style=\"display:none\">
+      <button id=\"playpause\">Pause</button>
+      <input id=\"seek\" type=\"range\" min=\"0\" max=\"1\" step=\"0.001\" value=\"0\" />
+      <span class=\"stats\" id=\"postext\">0%</span>
+    </div>
+  </div>
   <div>
     <div class=\"panel\">
       <h2>Classes</h2>
@@ -195,6 +201,10 @@ _INDEX_HTML = """<!doctype html>
       <div class=\"row\"><label>Show labels</label><input id=\"show_labels\" type=\"checkbox\" /></div>
       <div class=\"row\"><label>Show confidence</label><input id=\"show_confidence\" type=\"checkbox\" /></div>
       <div class=\"divider\"></div>
+      <h2>Export</h2>
+      <button class=\"export\" id=\"export\">Export annotated video</button>
+      <div class=\"exportmsg\" id=\"exportmsg\"></div>
+      <div class=\"divider\"></div>
       <h2>Performance</h2>
       <div class=\"stats\" id=\"stats\">connecting&hellip;</div>
     </div>
@@ -202,7 +212,7 @@ _INDEX_HTML = """<!doctype html>
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
-let state = null;
+let state = null, scrubbing = false, paused = false, exporting = false;
 
 function hex(rgb){ return '#' + rgb.map(c => c.toString(16).padStart(2,'0')).join(''); }
 function rgb(hex){ return [1,3,5].map(i => parseInt(hex.slice(i,i+2),16)); }
@@ -230,11 +240,25 @@ async function post(patch){
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)
   })).json();
 }
+function playback(patch){
+  fetch('/api/playback', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(patch)});
+}
 
 $('conf').oninput = (e) => post({conf: parseFloat(e.target.value)});
 $('thickness').oninput = (e) => post({thickness: parseInt(e.target.value)});
 $('show_labels').onchange = (e) => post({show_labels: e.target.checked});
 $('show_confidence').onchange = (e) => post({show_confidence: e.target.checked});
+
+$('playpause').onclick = () => { paused = !paused; $('playpause').textContent = paused ? 'Play' : 'Pause'; playback({paused}); };
+$('seek').oninput = () => { scrubbing = true; };
+$('seek').onchange = (e) => { playback({seek: parseFloat(e.target.value)}); scrubbing = false; };
+
+$('export').onclick = async () => {
+  const r = await fetch('/api/export', {method:'POST'});
+  const j = await r.json();
+  if(j.error){ $('exportmsg').textContent = j.error; return; }
+  exporting = true; $('export').disabled = true; $('exportmsg').textContent = 'Starting…';
+};
 
 async function poll(){
   try {
@@ -243,10 +267,23 @@ async function poll(){
       `Display <b>${s.display_fps}</b> fps &middot; Inference <b>${s.inference_fps}</b> fps<br>` +
       `Source <b>${s.source_fps}</b> fps &middot; ${s.resolution[0]}&times;${s.resolution[1]}` +
       (s.ended ? '<br><b>source ended</b>' : '');
+    if(s.seekable){
+      $('transport').style.display = 'flex';
+      if(!scrubbing) $('seek').value = s.progress;
+      $('postext').textContent = Math.round((s.progress||0)*100) + '%';
+    }
   } catch(e) {}
+  if(exporting){
+    try {
+      const es = await (await fetch('/api/export/status')).json();
+      if(es.error){ $('exportmsg').textContent = 'Error: ' + es.error; exporting=false; $('export').disabled=false; }
+      else if(es.done){ $('exportmsg').textContent = 'Saved: ' + es.out; exporting=false; $('export').disabled=false; }
+      else { $('exportmsg').textContent = `Exporting… ${Math.round((es.progress||0)*100)}% (${es.written}/${es.total})`; }
+    } catch(e) {}
+  }
 }
 load();
-setInterval(poll, 1000);
+setInterval(poll, 700);
 </script>
 </body>
 </html>"""

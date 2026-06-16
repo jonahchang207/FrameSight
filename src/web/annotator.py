@@ -24,7 +24,7 @@ import numpy as np
 from src.inference.detector import Detection
 from src.web.draw import draw_detections
 from src.web.render_settings import RenderSettings
-from src.web.video_source import BufferedVideoSource
+from src.web.video_source import ENDED, BufferedVideoSource
 
 
 class _Rate:
@@ -42,6 +42,11 @@ class _Rate:
             self.value = self._count / elapsed
             self._count = 0
             self._t0 = time.perf_counter()
+
+    def reset(self) -> None:
+        self._count = 0
+        self._t0 = time.perf_counter()
+        self.value = 0.0
 
 
 class Annotator:
@@ -61,21 +66,21 @@ class Annotator:
         self._player: Optional[threading.Thread] = None
         self._infer: Optional[threading.Thread] = None
 
-        # Latest frame to infer on (tapped by the player, consumed by inference).
         self._infer_input: Optional[np.ndarray] = None
         self._infer_lock = threading.Lock()
 
-        # Latest detections (produced by inference, drawn by the player).
         self._detections: List[Detection] = []
         self._det_lock = threading.Lock()
 
-        # Latest published JPEG + a condition so HTTP clients wake on new frames.
+        self._last_raw: Optional[np.ndarray] = None  # for redraw while paused
+
         self._jpeg: Optional[bytes] = None
         self._jpeg_seq = 0
         self._frame_cond = threading.Condition()
 
         self._display_rate = _Rate()
         self._infer_rate = _Rate()
+        self._pos = 0
         self._ended = False
 
     # -- lifecycle ---------------------------------------------------------
@@ -96,41 +101,67 @@ class Annotator:
             if t and t.is_alive():
                 t.join(timeout=1.5)
 
+    # -- playback controls -------------------------------------------------
+    def set_paused(self, paused: bool) -> None:
+        self._source.set_paused(paused)
+        if not paused:
+            self._display_rate.reset()
+
+    def seek_fraction(self, fraction: float) -> None:
+        self._source.seek_fraction(fraction)
+
     # -- worker loops ------------------------------------------------------
     def _player_loop(self) -> None:
         interval = 1.0 / max(1.0, self._source.fps)
         next_t = time.perf_counter()
         while not self._stop.is_set():
-            frame = self._source.read(timeout=0.5)
-            if frame is None:
+            if self._source.paused:
+                # Pull a frame only if one arrives (e.g. after a scrub), then
+                # keep re-drawing the held frame so live setting changes show.
+                item = self._source.read(timeout=0.05)
+                if item is ENDED:
+                    self._ended = True
+                    break
+                if item is not None:
+                    self._pos, self._last_raw = item[0], item[1]
+                self._render_and_publish(self._last_raw)
+                time.sleep(1.0 / 30.0)
+                next_t = time.perf_counter()
+                continue
+
+            item = self._source.read(timeout=0.5)
+            if item is ENDED:
                 self._ended = True
                 break
-            if frame.size == 0:
-                continue  # nothing buffered yet; keep waiting
+            if item is None:
+                continue  # nothing buffered yet
+            self._pos, frame = item[0], item[1]
+            self._last_raw = frame
 
-            # Tap the on-screen frame for inference (overwrite: always newest).
             with self._infer_lock:
                 self._infer_input = frame
+            self._render_and_publish(frame)
+            self._display_rate.tick()
 
-            with self._det_lock:
-                detections = list(self._detections)
-            snapshot = self._settings.snapshot()
-            draw_detections(frame, detections, snapshot)
-
-            ok, buf = cv2.imencode(
-                ".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality]
-            )
-            if ok:
-                self._publish(buf.tobytes())
-                self._display_rate.tick()
-
-            # Pace to the source FPS so high-refresh content plays smoothly.
             next_t += interval
             sleep = next_t - time.perf_counter()
             if sleep > 0:
                 time.sleep(sleep)
             else:
                 next_t = time.perf_counter()  # fell behind; resync
+
+    def _render_and_publish(self, frame: Optional[np.ndarray]) -> None:
+        if frame is None:
+            return
+        out = frame.copy()
+        with self._det_lock:
+            detections = list(self._detections)
+        draw_detections(out, detections, self._settings.snapshot())
+        ok, buf = cv2.imencode(
+            ".jpg", out, [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality]
+        )
+        if ok:
+            self._publish(buf.tobytes())
 
     def _infer_loop(self) -> None:
         while not self._stop.is_set():
@@ -172,10 +203,16 @@ class Annotator:
             yield boundary + b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
 
     def stats(self) -> Dict[str, Any]:
+        fc = self._source.frame_count
         return {
             "display_fps": round(self._display_rate.value, 1),
             "inference_fps": round(self._infer_rate.value, 1),
             "source_fps": round(self._source.fps, 1),
             "resolution": [self._source.width, self._source.height],
+            "paused": self._source.paused,
+            "seekable": self._source.seekable,
+            "position": self._pos,
+            "frame_count": fc,
+            "progress": round(self._pos / fc, 4) if fc else 0.0,
             "ended": self._ended,
         }
