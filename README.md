@@ -24,6 +24,8 @@ Full docs, feature overview, and pipeline details live on GitHub Pages:
 | Guide | Description |
 |-------|-------------|
 | **[SETUP.md](SETUP.md)** | Install Python, dataset, and dependencies |
+| **[AUTODISTILL.md](AUTODISTILL.md)** | Label Valorant footage with AutoDistill → train in Colab |
+| **[colab/FrameSight_Complete.ipynb](colab/FrameSight_Complete.ipynb)** | Full Colab notebook (upload → train → download → overlay commands) |
 | **[TRAIN.md](TRAIN.md)** | Train the model and run the overlay |
 
 ## Ethics

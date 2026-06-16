@@ -5,6 +5,11 @@ venv/
 .env
 config/local.yaml
 data/dataset/
+data/videos/*
+!data/videos/.gitkeep
+data/autodistill/frames/
+data/autodistill/dataset/
+data/autodistill/*.zip
 fn.v1i.yolov8/
 fn.v1i.yolov8.zip
 weights/*.pt

@@ -16,6 +16,8 @@ Train the YOLO11n detector on your Windows machine, then run the live overlay.
 
 Training uses the local dataset at `fn.v1i.yolov8\` and settings in `config\default.yaml`.
 
+**Build a dataset from gameplay video:** see **[AUTODISTILL.md](AUTODISTILL.md)** (multi-video upload → frame split → OWLv2 labels → Google Colab train).
+
 ---
 
 ## 1. Start training
@@ -121,6 +123,12 @@ python -m src.main
 - Full-screen capture + detection boxes (red = `enemy`, yellow = `enemy_head`)
 - **Ctrl+C** in the terminal to quit
 
+### OBS recording
+
+**Display Capture** on your game monitor shows boxes on screen (no config change).
+
+For **Window Capture**, set `overlay.click_through: false` in config, restart `.\scripts\run.ps1`, then add **Window Capture** → **FrameSight Overlay** (overlay area blocks mouse clicks).
+
 ### Overlay settings (`config\default.yaml`)
 
 ```yaml
@@ -135,7 +143,39 @@ overlay:
   enabled: true
   show_labels: true
   show_confidence: true
+
+smoothing:
+  enabled: true
+  alpha: 0.4       # lower = smoother boxes, slightly more lag
+  match_iou: 0.3
+  max_age: 3
+
+aim_assist:
+  enabled: false     # set true in config/local.yaml to opt in
+  proximity_px: 120  # only nudges when cursor is already near the aim point
+  strength: 0.22     # keep low — subtle console-style pull, not snap aim
 ```
+
+### Proximity mouse assist (accessibility)
+
+When `aim_assist.enabled: true`, FrameSight uses [HumanCursor](https://github.com/riflosnake/HumanCursor) to gently move the system mouse toward the **top-center** of the detection closest to the middle of the screen — but **only if your cursor is already within `proximity_px` pixels** of that point. It does not pull from across the screen.
+
+Tune in `config/local.yaml`: lower `proximity_px` and `strength` for a lighter assist; raise `max_center_distance_px` if targets near the edges should qualify.
+
+**In-game (FPS / raw input):** set `game_mode: true` and `move_method: game`. Desktop tools use absolute cursor moves; games ignore those and need **relative** `mouse_event` deltas from the **screen-center crosshair**, not `GetCursorPos`. Some titles with kernel anti-cheat block all synthetic mouse input — assist cannot work there.
+
+### Jittery or sluggish boxes
+
+Inference runs near ~30 FPS while capture is much faster, so raw boxes can shake frame-to-frame. **Smoothing** (enabled by default) tracks targets and blends positions over time.
+
+| Symptom | Try |
+|---------|-----|
+| Boxes still jittery | Lower `smoothing.alpha` (e.g. `0.25`) |
+| Boxes feel laggy behind motion | Raise `smoothing.alpha` (e.g. `0.55`) |
+| Boxes blink on/off | Raise `model.conf` (e.g. `0.45`) or raise `smoothing.max_age` |
+| Many enemies, only 1–2 boxes | Lower `model.iou` (e.g. `0.25`) and/or `model.conf` (e.g. `0.45`); try `imgsz: 640` |
+| Boxes linger after target leaves | Lower `smoothing.max_age` (e.g. `2`) |
+| Compare raw vs smooth | Set `smoothing.enabled: false` |
 
 ---
 

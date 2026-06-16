@@ -47,7 +47,9 @@ class WinScreenCapture:
             else:
                 frame = self._camera.grab(region=region)
         else:
-            frame = self._get_latest() or self._camera.grab()
+            frame = self._get_latest()
+            if frame is None:
+                frame = self._camera.grab()
 
         if frame is None:
             # Duplicate frame or startup — return small black buffer once

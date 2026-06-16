@@ -4,3 +4,8 @@ opencv-python-headless>=4.9.0
 numpy>=1.26.0
 PyYAML>=6.0.1
 dxcam>=0.0.5
+# AMD/Intel GPU inference on Windows (setup_windows.ps1 installs when needed)
+onnx>=1.12.0,<2.0.0
+onnxruntime-directml>=1.17.0; sys_platform == "win32"
+# Optional proximity aim assist (HumanCursor + pyautogui)
+humancursor>=1.1.5

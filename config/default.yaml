@@ -5,7 +5,9 @@ capture:
   # Target capture rate (Hz). Actual FPS depends on GPU, model, and monitor.
   target_fps: 165
   # Region: null = full primary monitor, or [left, top, width, height]
-  region: null
+  # Centered 1280x720 box on a 1920x1080 screen — ~44% of full-screen pixels,
+  # so capture/copy/preprocess is much cheaper and boxes stay around the crosshair.
+  region: [320, 180, 1280, 720]
   monitor_index: 1
 
 model:
@@ -13,20 +15,79 @@ model:
   weights: weights/best.pt
   # Fast defaults: yolo11n.pt (nano) or yolov8n.pt
   base_checkpoint: yolo11n.pt
-  imgsz: 640
-  conf: 0.35
-  iou: 0.45
-  device: "0"  # NVIDIA GPU on Windows; use "cpu" if no GPU
+  # imgsz: int = square (letterboxed), or [h, w] = rectangular graph (no padding).
+  # [288, 512] is exactly 16:9, matching the 1280x720 region above — so the model
+  # spends *zero* compute on gray padding bars and gets 512px of target width
+  # (vs 480 when a square net letterboxes 16:9). ~36% fewer pixels than 480x480.
+  # For a square region or full screen, use an int (e.g. 480; drop to 416 for more).
+  imgsz: [288, 512]
+  conf: 0.6   # lower if groups are missed; raise (e.g. 0.6) to cut false boxes
+  iou: 0.2   # NMS overlap threshold — lower keeps more boxes in crowded lines (default was 0.45)
+  max_det: 100
+  agnostic_nms: false
+  half: true   # FP16 on DirectML: ~1.5-2x faster on RDNA3. Auto-falls back to CPU(FP32) if the driver hangs; set false to force FP32 on GPU.
+  io_binding: false  # Reuse a GPU-resident input buffer (skips per-frame upload). OFF: crashes some AMD DML drivers (device-removal). Try true only if stable for you.
+  device: auto  # auto | cpu | 0 (CUDA) | dml — auto: NVIDIA=CUDA, AMD/Intel=DirectML overlay + CPU train
+
+smoothing:
+  enabled: true
+  alpha: 0.7       # 0 = frozen, 1 = raw; raised so the forward model gets fresher centers (less double-lag)
+  match_iou: 0.3     # min IoU to treat detections as the same target
+  match_dist_frac: 2.0  # fallback: match by center distance (×box size) when boxes don't overlap — kills trails on fast motion
+  max_age: 1         # inference frames to keep box after a missed detection (lower = ghosts clear faster)
+
+# Forward (constant-velocity) model: extrapolates boxes to render time to cancel the
+# latency from slow inference + smoothing. Runs after smoothing, predicts at overlay rate.
+forward_model:
+  enabled: true
+  lead_time_ms: 40         # how far ahead to predict (tune to inference+render+input lag)
+  velocity_alpha: 0.35     # EMA on estimated velocity; lower = steadier under camera pan, slower to react
+  position_alpha: 1.0      # 1.0 = trust the (already smoothed) center fully
+  match_iou: 0.2           # min IoU to associate a detection with an existing track
+  match_dist_frac: 2.5     # fallback: associate by center distance (×box size); high so fast flicks bootstrap velocity instead of trailing
+  max_age: 2               # inference frames to keep extrapolating a missed target (lower = fewer ghost boxes)
+  max_speed_px: 4000       # clamp on velocity magnitude (px/s) to reject jitter spikes
+  min_speed_px: 60         # deadzone: below this, treat target as still — kills wobble on near-stationary boxes
+  max_extrapolation_ms: 120  # never project further than this since the last update
+
+# Proximity-gated mouse assist. OFF by default and gated by the --aim-assist CLI
+# flag: `python -m src.main --aim-assist`. The `enabled` key below is ignored —
+# the flag is the master switch; these values only tune behavior once enabled.
+aim_assist:
+  enabled: false          # ignored — use the --aim-assist flag to turn it on
+  game_mode: true         # FPS: relative mouse + screen-center crosshair (required in games)
+  debug: false
+  proximity_px: 200       # in game_mode: max pixels from crosshair to aim point
+  strength: 0.35
+  max_center_distance_px: 600
+  assist_hz: 30           # higher rate feels better with relative moves
+  move_duration_min: 0.04
+  move_duration_max: 0.14
+  aim_point: top_center   # top_center | center
+  move_method: game       # game | humancursor — humancursor only works on desktop
+  target_labels: [enemy, enemy_head]
+  steady: false
 
 overlay:
   enabled: true
+  click_through: true   # true = mouse passthrough; false = OBS Window Capture (blocks clicks on overlay)
+  topmost: true
+  window_title: FrameSight Overlay
   box_thickness: 2
+  show_fps: true          # on-screen HUD: overlay / capture / inference FPS + target count
   colors:
     default: [0, 255, 128]
     enemy: [255, 64, 64]
     enemy_head: [255, 200, 0]
   show_labels: true
   show_confidence: true
+  show_center_lines: false  # lines from screen center to each box
+  center_line_width: 2
+  center_line_target: box_center  # box_center | top_center
+  distance_colors: false    # false = fixed per-class colors below (cheaper); true = red→green gradient by distance from screen center
+  color_near: [255, 64, 64]   # red — target near crosshair (only used when distance_colors: true)
+  color_far: [0, 255, 128]    # green — target far from crosshair (only used when distance_colors: true)
+  distance_max_px: 500        # gradient between red (close) and green (far)
 
 dataset:
   # Local Roboflow export (fn v1, YOLOv8)

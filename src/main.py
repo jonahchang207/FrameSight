@@ -7,9 +7,9 @@ Usage (from repo root on Windows):
 
 from __future__ import annotations
 
+import argparse
 import signal
 import sys
-import time
 from pathlib import Path
 
 if sys.platform != "win32":
@@ -18,9 +18,19 @@ if sys.platform != "win32":
 
 from src.capture.screen_capture import create_capture
 from src.config_loader import ROOT, load_config
-from src.inference.detector import YoloDetector
+from src.inference.box_smoother import BoxSmoother
+from src.inference.detector_factory import create_detector
+from src.inference.forward_model import ForwardPredictor
+from src.input.aim_assist import create_aim_assist
 from src.overlay.overlay_window import OverlayApp
 from src.pipeline import FrameSightPipeline
+from src.timing import high_resolution_timer, precise_sleep
+
+
+def _tuple_rgb(value) -> tuple[int, int, int]:
+    if isinstance(value, (list, tuple)) and len(value) >= 3:
+        return int(value[0]), int(value[1]), int(value[2])
+    return 0, 255, 128
 
 
 def _resolve_weights(cfg: dict) -> Path:
@@ -32,13 +42,15 @@ def _resolve_weights(cfg: dict) -> Path:
     return Path(cfg["model"].get("base_checkpoint", "yolo11n.pt"))
 
 
-def _region_offset(region) -> tuple[int, int]:
-    if region and len(region) >= 2:
-        return int(region[0]), int(region[1])
-    return 0, 0
-
-
 def main() -> int:
+    parser = argparse.ArgumentParser(prog="framesight")
+    parser.add_argument(
+        "--aim-assist",
+        action="store_true",
+        help="Enable the proximity mouse assist (OFF unless this flag is passed).",
+    )
+    args = parser.parse_args()
+
     cfg = load_config()
     cap_cfg = cfg["capture"]
     model_cfg = cfg["model"]
@@ -53,15 +65,18 @@ def main() -> int:
 
     probe = capture.grab()
     h, w = probe.bgr.shape[:2]
-    left, top = _region_offset(region)
 
     weights = _resolve_weights(cfg)
-    detector = YoloDetector(
+    detector = create_detector(
         weights=weights,
         imgsz=model_cfg.get("imgsz", 640),
         conf=model_cfg.get("conf", 0.35),
         iou=model_cfg.get("iou", 0.45),
-        device=model_cfg.get("device", "0"),
+        device_requested=model_cfg.get("device", "auto"),
+        max_det=int(model_cfg.get("max_det", 300)),
+        agnostic_nms=bool(model_cfg.get("agnostic_nms", False)),
+        half=bool(model_cfg.get("half", True)),
+        io_binding=bool(model_cfg.get("io_binding", False)),
     )
 
     overlay = None
@@ -73,25 +88,87 @@ def main() -> int:
             if k != "default" and isinstance(v, (list, tuple))
         }
         default = tuple(colors_cfg.get("default", [0, 255, 128]))
+        from src.input.monitor_rect import get_monitor_rect
+
+        mon_left, mon_top, mon_w, mon_h = get_monitor_rect(cap_cfg.get("monitor_index", 1))
+        reg_left = int(region[0]) if region and len(region) >= 1 else 0
+        reg_top = int(region[1]) if region and len(region) >= 2 else 0
+        # Overlay spans the whole monitor so the stats HUD sits in the true
+        # screen corner; boxes (in region-local coords) get shifted by the
+        # region offset, even though inference only runs on the center region.
         overlay = OverlayApp(
-            width=w,
-            height=h,
-            left=left,
-            top=top,
+            width=mon_w,
+            height=mon_h,
+            left=mon_left,
+            top=mon_top,
+            box_offset_x=reg_left,
+            box_offset_y=reg_top,
             refresh_hz=cap_cfg.get("target_fps", 165),
             box_thickness=overlay_cfg.get("box_thickness", 2),
             show_labels=overlay_cfg.get("show_labels", True),
             show_confidence=overlay_cfg.get("show_confidence", True),
             default_color=default,
             class_colors=class_colors,
+            click_through=overlay_cfg.get("click_through", True),
+            topmost=overlay_cfg.get("topmost", True),
+            window_title=str(overlay_cfg.get("window_title", "FrameSight Overlay")),
+            show_fps=bool(overlay_cfg.get("show_fps", True)),
+            show_center_lines=overlay_cfg.get("show_center_lines", True),
+            center_line_width=int(overlay_cfg.get("center_line_width", 1)),
+            center_line_target=str(overlay_cfg.get("center_line_target", "box_center")),
+            distance_colors=bool(overlay_cfg.get("distance_colors", False)),
+            color_near=_tuple_rgb(overlay_cfg.get("color_near", [255, 64, 64])),
+            color_far=_tuple_rgb(overlay_cfg.get("color_far", [0, 255, 128])),
+            distance_max_px=overlay_cfg.get("distance_max_px"),
         )
         overlay.show()
+
+    smooth_cfg = cfg.get("smoothing", {})
+    smoother = None
+    if smooth_cfg.get("enabled", True):
+        smoother = BoxSmoother(
+            enabled=True,
+            alpha=float(smooth_cfg.get("alpha", 0.4)),
+            match_iou=float(smooth_cfg.get("match_iou", 0.3)),
+            match_dist_frac=float(smooth_cfg.get("match_dist_frac", 0.6)),
+            max_age=int(smooth_cfg.get("max_age", 3)),
+        )
+
+    fwd_cfg = cfg.get("forward_model", {})
+    predictor = None
+    if fwd_cfg.get("enabled", False):
+        predictor = ForwardPredictor(
+            enabled=True,
+            lead_time_ms=float(fwd_cfg.get("lead_time_ms", 40.0)),
+            velocity_alpha=float(fwd_cfg.get("velocity_alpha", 0.5)),
+            position_alpha=float(fwd_cfg.get("position_alpha", 1.0)),
+            match_iou=float(fwd_cfg.get("match_iou", 0.2)),
+            match_dist_frac=float(fwd_cfg.get("match_dist_frac", 0.6)),
+            max_age=int(fwd_cfg.get("max_age", 6)),
+            max_speed_px=float(fwd_cfg.get("max_speed_px", 4000.0)),
+            min_speed_px=float(fwd_cfg.get("min_speed_px", 0.0)),
+            max_extrapolation_ms=float(fwd_cfg.get("max_extrapolation_ms", 120.0)),
+        )
+
+    # Aim assist is OFF unless the --aim-assist flag is passed (the flag is the
+    # master switch; config only holds its tuning).
+    aim_assist = create_aim_assist(
+        cfg,
+        monitor_index=cap_cfg.get("monitor_index", 1),
+        region=region,
+        region_w=w,
+        region_h=h,
+        enabled=args.aim_assist,
+    )
 
     pipeline = FrameSightPipeline(
         capture=capture,
         detector=detector,
         overlay=overlay,
         target_capture_fps=cap_cfg.get("target_fps", 165),
+        smoother=smoother,
+        aim_assist=aim_assist,
+        predictor=predictor,
     )
     pipeline.start()
 
@@ -106,19 +183,38 @@ def main() -> int:
 
     print("FrameSight running (Windows). Ctrl+C to quit.")
     print(f"  Weights: {weights}")
-    print(f"  Region: {w}x{h} at ({left}, {top})")
+    if predictor is not None:
+        print(
+            f"  Forward model: ON (lead {predictor.lead_time * 1000:.0f}ms, "
+            f"vel_alpha {predictor.velocity_alpha:.2f})"
+        )
+    if aim_assist is not None:
+        mode = "game (relative mouse)" if aim_assist._game_mode else "desktop"
+        print(
+            f"  Aim assist: ON [{mode}] proximity {aim_assist.proximity_px:.0f}px, "
+            f"strength {aim_assist.strength:.0%}  (--aim-assist)"
+        )
+        if aim_assist._debug:
+            print("  Aim assist debug: ON — skip reasons print every ~1s")
+    else:
+        print("  Aim assist: OFF (pass --aim-assist to enable)")
+    print(f"  Region: {w}x{h}")
 
+    target_fps = cap_cfg.get("target_fps", 165)
     try:
-        while not stop:
-            pipeline.tick_overlay()
-            stats = pipeline.stats
-            if stats.frames_inferred and stats.frames_inferred % 60 == 0:
-                print(
-                    f"  capture {stats.capture_fps:.1f} fps | "
-                    f"inference {stats.inference_fps:.1f} fps",
-                    end="\r",
-                )
-            time.sleep(1.0 / cap_cfg.get("target_fps", 165))
+        # Raise the OS timer resolution to ~1ms; without this every sub-frame
+        # time.sleep rounds up to ~15ms and the whole pipeline stalls near 64 Hz.
+        with high_resolution_timer(1):
+            while not stop:
+                pipeline.tick_overlay()
+                stats = pipeline.stats
+                if stats.frames_inferred and stats.frames_inferred % 60 == 0:
+                    print(
+                        f"  capture {stats.capture_fps:.1f} fps | "
+                        f"inference {stats.inference_fps:.1f} fps",
+                        end="\r",
+                    )
+                precise_sleep(1.0 / target_fps)
     finally:
         pipeline.stop()
         capture.close()

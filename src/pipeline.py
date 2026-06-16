@@ -9,8 +9,12 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from src.capture.screen_capture import CaptureFrame, ScreenCapture
+from src.inference.box_smoother import BoxSmoother
 from src.inference.detector import Detection, YoloDetector
+from src.inference.forward_model import ForwardPredictor
+from src.input.aim_assist import AimAssist
 from src.overlay.overlay_window import OverlayApp
+from src.timing import precise_sleep
 
 
 @dataclass
@@ -36,10 +40,16 @@ class FrameSightPipeline:
         overlay: Optional[OverlayApp],
         target_capture_fps: int = 165,
         max_queue: int = 2,
+        smoother: Optional[BoxSmoother] = None,
+        aim_assist: Optional[AimAssist] = None,
+        predictor: Optional[ForwardPredictor] = None,
     ) -> None:
         self._capture = capture
         self._detector = detector
         self._overlay = overlay
+        self._smoother = smoother
+        self._aim_assist = aim_assist
+        self._predictor = predictor
         self._target_capture_fps = target_capture_fps
         self._frame_queue: queue.Queue[CaptureFrame] = queue.Queue(maxsize=max_queue)
         self._latest_detections: List[Detection] = []
@@ -55,6 +65,13 @@ class FrameSightPipeline:
 
     def start(self) -> None:
         self._stop.clear()
+        # Let the overlay pull freshly-extrapolated boxes at its own paint time
+        # (see overlay_detections) instead of being fed stale, main-loop-rate
+        # detections. This is what actually makes the forward model hide latency.
+        if self._overlay is not None and hasattr(self._overlay, "set_detection_provider"):
+            self._overlay.set_detection_provider(self.overlay_detections)
+        if self._overlay is not None and hasattr(self._overlay, "set_stats_provider"):
+            self._overlay.set_stats_provider(lambda: self._stats)
         self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._infer_thread = threading.Thread(target=self._infer_loop, daemon=True)
         self._capture_thread.start()
@@ -93,9 +110,7 @@ class FrameSightPipeline:
                 cap_count = 0
                 t0 = time.perf_counter()
 
-            sleep_for = interval - (time.perf_counter() - loop_start)
-            if sleep_for > 0:
-                time.sleep(sleep_for)
+            precise_sleep(interval - (time.perf_counter() - loop_start))
 
     def _infer_loop(self) -> None:
         inf_count = 0
@@ -114,9 +129,20 @@ class FrameSightPipeline:
                 except queue.Empty:
                     break
 
-            detections = self._detector.predict(frame.bgr)
-            with self._det_lock:
-                self._latest_detections = detections
+            try:
+                detections = self._detector.predict(frame.bgr)
+                if self._smoother is not None:
+                    detections = self._smoother.update(detections)
+                with self._det_lock:
+                    self._latest_detections = detections
+                    if self._predictor is not None:
+                        self._predictor.update(detections, time.perf_counter())
+            except Exception as exc:  # noqa: BLE001
+                # Never let a bad frame kill the inference thread — keep last boxes.
+                if not getattr(self, "_infer_err_logged", False):
+                    print(f"\nInference error (continuing): {type(exc).__name__}: {exc}")
+                    self._infer_err_logged = True
+                continue
 
             inf_count += 1
             elapsed = time.perf_counter() - t0
@@ -126,9 +152,25 @@ class FrameSightPipeline:
                 inf_count = 0
                 t0 = time.perf_counter()
 
-    def tick_overlay(self) -> List[Detection]:
+    def overlay_detections(self) -> List[Detection]:
+        """Boxes extrapolated to *now* — called by the overlay at paint time.
+
+        Evaluating the forward model at the moment of the draw (rather than in
+        the main loop) is what lets the boxes track the target at the overlay's
+        full refresh rate instead of the slower inference/main-loop rate.
+        """
+        now = time.perf_counter()
         with self._det_lock:
-            dets = list(self._latest_detections)
-        if self._overlay:
+            if self._predictor is not None:
+                return self._predictor.predict(now)
+            return list(self._latest_detections)
+
+    def tick_overlay(self) -> List[Detection]:
+        dets = self.overlay_detections()
+        # Overlays that support set_detection_provider pull their own frames;
+        # only push for ones that don't (keeps older overlays working).
+        if self._overlay and not hasattr(self._overlay, "set_detection_provider"):
             self._overlay.update_detections(dets)
+        if self._aim_assist is not None:
+            self._aim_assist.tick(dets)
         return dets

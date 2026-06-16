@@ -1,5 +1,19 @@
 # Optional overrides — copy to config/local.yaml
 
+# Aim assist is OFF unless you launch with the --aim-assist flag:
+#   python -m src.main --aim-assist
+# These only tune it once the flag enables it:
+# aim_assist:
+#   proximity_px: 100   # smaller = only helps when already almost on target
+#   strength: 0.18      # lower = gentler nudge per tick
+
 # model:
-#   device: "0"
-#   conf: 0.4
+#   device: auto   # or cpu, 0, dml
+# overlay:
+#   click_through: false   # OBS Window Capture only (blocks mouse on overlay)
+# smoothing:
+#   enabled: true
+#   alpha: 0.25    # lower = smoother boxes, slightly more lag
+#   max_age: 3
+#   conf: 0.45
+#   iou: 0.25    # crowded enemies — lower = more boxes kept after NMS

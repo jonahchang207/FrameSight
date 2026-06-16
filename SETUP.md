@@ -121,6 +121,11 @@ Edit `config\local.yaml` or `config\default.yaml`:
 | `model.device` | `default.yaml` | `"0"` = first GPU, `"cpu"` = CPU only |
 | `training.batch` | `default.yaml` | Lower (e.g. `8`) if you run out of VRAM |
 | `training.epochs` | `default.yaml` | Default `100` |
+| `smoothing.alpha` | `default.yaml` | Box stability (lower = smoother, more lag) |
+| `smoothing.enabled` | `default.yaml` | `false` to show raw detector boxes |
+| `aim_assist.enabled` | `local.yaml` | Proximity mouse assist (off by default; not full aim) |
+| `aim_assist.proximity_px` | `local.yaml` | Only nudge when cursor is already this close to target |
+| `aim_assist.strength` | `local.yaml` | How much of the gap to close per nudge (keep low, e.g. `0.18`) |
 
 ---
 
@@ -145,6 +150,33 @@ Edit `config\local.yaml` or `config\default.yaml`:
 ### No NVIDIA GPU
 
 - Training on CPU is possible but very slow. Set `model.device: "cpu"` in `config/default.yaml`.
+
+### AMD or Intel GPU (e.g. RX 7600 XT)
+
+FrameSight **auto-detects** your GPU:
+
+| GPU | Training | Live overlay |
+|-----|----------|----------------|
+| NVIDIA | CUDA (`device: 0`) | CUDA |
+| AMD / Intel | CPU (Ultralytics limitation) | **DirectML** via ONNX (`device: auto`) |
+
+1. Run `.\scripts\setup_windows.ps1` — installs `onnxruntime-directml` when an AMD/Intel GPU is detected.
+2. Keep `model.device: auto` in `config/default.yaml` (default).
+3. Train with `.\scripts\train.ps1` (CPU; may take a long time).
+4. Run `.\scripts\run.ps1` — exports `weights/best.onnx` on first launch and uses your **7600 XT** for inference.
+
+Verify DirectML:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from src.device_utils import detect_accelerator; print(detect_accelerator())"
+```
+
+If you see CPU-only inference, remove conflicting packages and reinstall DirectML:
+
+```powershell
+.\.venv\Scripts\pip uninstall -y onnxruntime
+.\.venv\Scripts\pip install onnxruntime-directml
+```
 
 ---
 
