@@ -149,20 +149,7 @@ smoothing:
   alpha: 0.4       # lower = smoother boxes, slightly more lag
   match_iou: 0.3
   max_age: 3
-
-aim_assist:
-  enabled: false     # set true in config/local.yaml to opt in
-  proximity_px: 120  # only nudges when cursor is already near the aim point
-  strength: 0.22     # keep low — subtle console-style pull, not snap aim
 ```
-
-### Proximity mouse assist (accessibility)
-
-When `aim_assist.enabled: true`, FrameSight uses [HumanCursor](https://github.com/riflosnake/HumanCursor) to gently move the system mouse toward the **top-center** of the detection closest to the middle of the screen — but **only if your cursor is already within `proximity_px` pixels** of that point. It does not pull from across the screen.
-
-Tune in `config/local.yaml`: lower `proximity_px` and `strength` for a lighter assist; raise `max_center_distance_px` if targets near the edges should qualify.
-
-**In-game (FPS / raw input):** set `game_mode: true` and `move_method: game`. Desktop tools use absolute cursor moves; games ignore those and need **relative** `mouse_event` deltas from the **screen-center crosshair**, not `GetCursorPos`. Some titles with kernel anti-cheat block all synthetic mouse input — assist cannot work there.
 
 ### Jittery or sluggish boxes
 

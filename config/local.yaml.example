@@ -1,12 +1,5 @@
 # Optional overrides — copy to config/local.yaml
 
-# Aim assist is OFF unless you launch with the --aim-assist flag:
-#   python -m src.main --aim-assist
-# These only tune it once the flag enables it:
-# aim_assist:
-#   proximity_px: 100   # smaller = only helps when already almost on target
-#   strength: 0.18      # lower = gentler nudge per tick
-
 # model:
 #   device: auto   # or cpu, 0, dml
 # overlay:

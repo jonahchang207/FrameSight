@@ -50,24 +50,6 @@ forward_model:
   min_speed_px: 60         # deadzone: below this, treat target as still — kills wobble on near-stationary boxes
   max_extrapolation_ms: 120  # never project further than this since the last update
 
-# Proximity-gated mouse assist. OFF by default and gated by the --aim-assist CLI
-# flag: `python -m src.main --aim-assist`. The `enabled` key below is ignored —
-# the flag is the master switch; these values only tune behavior once enabled.
-aim_assist:
-  enabled: false          # ignored — use the --aim-assist flag to turn it on
-  game_mode: true         # FPS: relative mouse + screen-center crosshair (required in games)
-  debug: false
-  proximity_px: 200       # in game_mode: max pixels from crosshair to aim point
-  strength: 0.35
-  max_center_distance_px: 600
-  assist_hz: 30           # higher rate feels better with relative moves
-  move_duration_min: 0.04
-  move_duration_max: 0.14
-  aim_point: top_center   # top_center | center
-  move_method: game       # game | humancursor — humancursor only works on desktop
-  target_labels: [enemy, enemy_head]
-  steady: false
-
 overlay:
   enabled: true
   click_through: true   # true = mouse passthrough; false = OBS Window Capture (blocks clicks on overlay)

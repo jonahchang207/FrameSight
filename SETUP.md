@@ -123,9 +123,6 @@ Edit `config\local.yaml` or `config\default.yaml`:
 | `training.epochs` | `default.yaml` | Default `100` |
 | `smoothing.alpha` | `default.yaml` | Box stability (lower = smoother, more lag) |
 | `smoothing.enabled` | `default.yaml` | `false` to show raw detector boxes |
-| `aim_assist.enabled` | `local.yaml` | Proximity mouse assist (off by default; not full aim) |
-| `aim_assist.proximity_px` | `local.yaml` | Only nudge when cursor is already this close to target |
-| `aim_assist.strength` | `local.yaml` | How much of the gap to close per nudge (keep low, e.g. `0.18`) |
 
 ---
 

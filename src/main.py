@@ -21,7 +21,6 @@ from src.config_loader import ROOT, load_config
 from src.inference.box_smoother import BoxSmoother
 from src.inference.detector_factory import create_detector
 from src.inference.forward_model import ForwardPredictor
-from src.input.aim_assist import create_aim_assist
 from src.overlay.overlay_window import OverlayApp
 from src.pipeline import FrameSightPipeline
 from src.timing import high_resolution_timer, precise_sleep
@@ -44,12 +43,7 @@ def _resolve_weights(cfg: dict) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="framesight")
-    parser.add_argument(
-        "--aim-assist",
-        action="store_true",
-        help="Enable the proximity mouse assist (OFF unless this flag is passed).",
-    )
-    args = parser.parse_args()
+    parser.parse_args()
 
     cfg = load_config()
     cap_cfg = cfg["capture"]
@@ -150,24 +144,12 @@ def main() -> int:
             max_extrapolation_ms=float(fwd_cfg.get("max_extrapolation_ms", 120.0)),
         )
 
-    # Aim assist is OFF unless the --aim-assist flag is passed (the flag is the
-    # master switch; config only holds its tuning).
-    aim_assist = create_aim_assist(
-        cfg,
-        monitor_index=cap_cfg.get("monitor_index", 1),
-        region=region,
-        region_w=w,
-        region_h=h,
-        enabled=args.aim_assist,
-    )
-
     pipeline = FrameSightPipeline(
         capture=capture,
         detector=detector,
         overlay=overlay,
         target_capture_fps=cap_cfg.get("target_fps", 165),
         smoother=smoother,
-        aim_assist=aim_assist,
         predictor=predictor,
     )
     pipeline.start()
@@ -188,16 +170,6 @@ def main() -> int:
             f"  Forward model: ON (lead {predictor.lead_time * 1000:.0f}ms, "
             f"vel_alpha {predictor.velocity_alpha:.2f})"
         )
-    if aim_assist is not None:
-        mode = "game (relative mouse)" if aim_assist._game_mode else "desktop"
-        print(
-            f"  Aim assist: ON [{mode}] proximity {aim_assist.proximity_px:.0f}px, "
-            f"strength {aim_assist.strength:.0%}  (--aim-assist)"
-        )
-        if aim_assist._debug:
-            print("  Aim assist debug: ON — skip reasons print every ~1s")
-    else:
-        print("  Aim assist: OFF (pass --aim-assist to enable)")
     print(f"  Region: {w}x{h}")
 
     target_fps = cap_cfg.get("target_fps", 165)

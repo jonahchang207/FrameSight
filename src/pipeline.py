@@ -12,7 +12,6 @@ from src.capture.screen_capture import CaptureFrame, ScreenCapture
 from src.inference.box_smoother import BoxSmoother
 from src.inference.detector import Detection, YoloDetector
 from src.inference.forward_model import ForwardPredictor
-from src.input.aim_assist import AimAssist
 from src.overlay.overlay_window import OverlayApp
 from src.timing import precise_sleep
 
@@ -41,14 +40,12 @@ class FrameSightPipeline:
         target_capture_fps: int = 165,
         max_queue: int = 2,
         smoother: Optional[BoxSmoother] = None,
-        aim_assist: Optional[AimAssist] = None,
         predictor: Optional[ForwardPredictor] = None,
     ) -> None:
         self._capture = capture
         self._detector = detector
         self._overlay = overlay
         self._smoother = smoother
-        self._aim_assist = aim_assist
         self._predictor = predictor
         self._target_capture_fps = target_capture_fps
         self._frame_queue: queue.Queue[CaptureFrame] = queue.Queue(maxsize=max_queue)
@@ -171,6 +168,4 @@ class FrameSightPipeline:
         # only push for ones that don't (keeps older overlays working).
         if self._overlay and not hasattr(self._overlay, "set_detection_provider"):
             self._overlay.update_detections(dets)
-        if self._aim_assist is not None:
-            self._aim_assist.tick(dets)
         return dets
