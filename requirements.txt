@@ -7,3 +7,8 @@ dxcam>=0.0.5
 # AMD/Intel GPU inference on Windows (setup_windows.ps1 installs when needed)
 onnx>=1.12.0,<2.0.0
 onnxruntime-directml>=1.17.0; sys_platform == "win32"
+# Localhost video/stream annotation dashboard (src/web)
+fastapi>=0.110.0
+uvicorn>=0.29.0
+# Optional: resolve YouTube/Twitch/etc. page URLs to a playable stream
+yt-dlp>=2024.1.0
