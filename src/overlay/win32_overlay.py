@@ -83,9 +83,6 @@ class Win32Overlay:
         show_center_lines: bool = True,
         center_line_width: int = 1,
         center_line_target: str = "box_center",
-        show_center_arrow: bool = True,
-        center_arrow_len: int = 80,
-        center_arrow_width: int = 3,
         proximity_flash: bool = True,
         proximity_radius_px: int = 150,
         proximity_border_width: int = 12,
@@ -112,9 +109,6 @@ class Win32Overlay:
         self._show_center_lines = show_center_lines
         self._center_line_width = max(1, center_line_width)
         self._center_line_target = center_line_target
-        self._show_center_arrow = show_center_arrow
-        self._center_arrow_len = max(1, center_arrow_len)
-        self._center_arrow_width = max(1, center_arrow_width)
         self._proximity_flash = proximity_flash
         self._proximity_radius_px = max(1, proximity_radius_px)
         self._proximity_border_width = max(1, proximity_border_width)
@@ -259,33 +253,6 @@ class Win32Overlay:
                             arrowshape=(8, 10, 3),
                         )
 
-            if self._show_center_arrow and dets:
-                # Arrow from screen center pointing at the box nearest the center.
-                closest = min(
-                    dets,
-                    key=lambda d: math.hypot(
-                        (d.x1 + d.x2) / 2 - cx, (d.y1 + d.y2) / 2 - cy
-                    ),
-                )
-                bx = (closest.x1 + closest.x2) / 2
-                by = (closest.y1 + closest.y2) / 2
-                dist = math.hypot(bx - cx, by - cy)
-                if dist > 1e-3:
-                    # Fixed-length pointer aimed at the target's center.
-                    reach = min(self._center_arrow_len, dist)
-                    ex = cx + (bx - cx) / dist * reach
-                    ey = cy + (by - cy) / dist * reach
-                    canvas.create_line(
-                        cx,
-                        cy,
-                        ex,
-                        ey,
-                        fill=self._color_for_detection(closest, cx, cy, max_dist),
-                        width=self._center_arrow_width,
-                        arrow="last",
-                        arrowshape=(16, 20, 6),
-                    )
-
             if self._proximity_flash and dets:
                 # Flash a red screen border while a box is near the center.
                 nearest = min(
@@ -413,9 +380,6 @@ class OverlayApp:
         show_center_lines: bool = True,
         center_line_width: int = 1,
         center_line_target: str = "box_center",
-        show_center_arrow: bool = True,
-        center_arrow_len: int = 80,
-        center_arrow_width: int = 3,
         proximity_flash: bool = True,
         proximity_radius_px: int = 150,
         proximity_border_width: int = 12,
@@ -447,9 +411,6 @@ class OverlayApp:
             show_center_lines=show_center_lines,
             center_line_width=center_line_width,
             center_line_target=center_line_target,
-            show_center_arrow=show_center_arrow,
-            center_arrow_len=center_arrow_len,
-            center_arrow_width=center_arrow_width,
             proximity_flash=proximity_flash,
             proximity_radius_px=proximity_radius_px,
             proximity_border_width=proximity_border_width,

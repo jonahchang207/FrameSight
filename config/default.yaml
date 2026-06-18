@@ -25,7 +25,7 @@ model:
   iou: 0.2   # NMS overlap threshold — lower keeps more boxes in crowded lines (default was 0.45)
   max_det: 100
   agnostic_nms: false
-  detect_head: true   # false = never detect or draw the 'head' class (body only)
+  detect_head: false   # false = never detect or draw the 'head' class (body only)
   half: true   # FP16 on DirectML: ~1.5-2x faster on RDNA3. Auto-falls back to CPU(FP32) if the driver hangs; set false to force FP32 on GPU.
   io_binding: false  # Reuse a GPU-resident input buffer (skips per-frame upload). OFF: crashes some AMD DML drivers (device-removal). Try true only if stable for you.
   device: auto  # auto | cpu | 0 (CUDA) | dml — auto: NVIDIA=CUDA, AMD/Intel=DirectML overlay + CPU train
@@ -67,9 +67,6 @@ overlay:
   show_center_lines: true  # lines from each screen corner to each box's corners
   center_line_width: 2
   center_line_target: box_center  # box_center | top_center
-  show_center_arrow: true   # arrow at screen center pointing to the nearest box
-  center_arrow_len: 80      # arrow length in pixels
-  center_arrow_width: 3     # arrow line thickness
   proximity_flash: true     # flash a red screen border when a box nears the center
   proximity_radius_px: 150  # vicinity (px from center) that triggers the flash
   proximity_border_width: 12  # red border thickness in pixels
