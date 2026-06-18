@@ -24,6 +24,11 @@ WS_EX_TRANSPARENT = 0x00000020
 WS_EX_TOPMOST = 0x00000008
 WS_EX_NOACTIVATE = 0x08000000
 LWA_COLORKEY = 0x00000001
+# Exclude the overlay from screen capture (Win10 2004+). The user still sees
+# the overlay, but Desktop Duplication / dxcam does NOT — so the captured
+# frames fed to the detector and magnifier are clean game pixels instead of
+# the overlay's own black canvas (which otherwise causes a black self-capture).
+WDA_EXCLUDEFROMCAPTURE = 0x00000011
 
 
 def _apply_overlay_styles(hwnd: int, *, click_through: bool, topmost: bool) -> None:
@@ -40,6 +45,11 @@ def _apply_overlay_styles(hwnd: int, *, click_through: bool, topmost: bool) -> N
         style &= ~WS_EX_TOPMOST
     user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
     user32.SetLayeredWindowAttributes(hwnd, 0, 0, LWA_COLORKEY)
+    # Keep the overlay out of the capture so it can't feed back into itself.
+    try:
+        user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+    except Exception:  # noqa: BLE001 — older Windows: best-effort, ignore
+        pass
 
 
 def _target_point(det: Detection, target: str) -> Tuple[float, float]:
@@ -87,6 +97,9 @@ class Win32Overlay:
         proximity_radius_px: int = 150,
         proximity_border_width: int = 12,
         proximity_flash_hz: float = 4.0,
+        magnifier: bool = False,
+        magnifier_radius: int = 120,
+        magnifier_zoom: float = 2.0,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -113,6 +126,20 @@ class Win32Overlay:
         self._proximity_radius_px = max(1, proximity_radius_px)
         self._proximity_border_width = max(1, proximity_border_width)
         self._proximity_flash_hz = max(0.1, proximity_flash_hz)
+        self._width = int(width)
+        self._height = int(height)
+        self._magnifier = magnifier
+        self._magnifier_radius = max(8, magnifier_radius)
+        self._magnifier_zoom = max(1.0, magnifier_zoom)
+        self._frame_provider: Optional[Callable[[], object]] = None
+        self._mag_photo = None  # holds a ref so the PhotoImage isn't GC'd
+        # The heavy crop/resize/mask runs on its own thread; the paint thread
+        # only blits the latest prepared image (a PIL.Image) so box rendering
+        # is never blocked by the magnifier.
+        self._mag_image = None
+        self._mag_lock = threading.Lock()
+        self._mag_stop = threading.Event()
+        self._mag_thread: Optional[threading.Thread] = None
         self._distance_colors = distance_colors
         self._color_near = color_near
         self._color_far = color_far
@@ -141,6 +168,73 @@ class Win32Overlay:
 
     def _class_rgb(self, label: str) -> Tuple[int, int, int]:
         return self._class_colors.get(label, self._default_rgb)
+
+    def _magnifier_worker(self) -> None:
+        """Background loop: prepare the zoomed circular inset off the paint thread.
+
+        Does all the cv2 crop/resize and the circular alpha mask, then stashes a
+        ready-to-blit PIL image. Runs as fast as fresh frames arrive (paced to the
+        refresh budget) so it stays realtime without touching the box pipeline.
+        """
+        try:
+            import cv2
+            import numpy as np
+            from PIL import Image
+        except Exception:  # noqa: BLE001 — Pillow/cv2 missing: disable magnifier
+            return
+
+        R = self._magnifier_radius
+        diameter = 2 * R
+        src_r = max(1, int(round(R / self._magnifier_zoom)))
+        # Circular alpha mask is constant — build it once.
+        yy, xx = np.ogrid[:diameter, :diameter]
+        alpha = np.where((xx - R) ** 2 + (yy - R) ** 2 <= R * R, 255, 0).astype(np.uint8)
+        # Frame pixel under the screen center (region offset removed).
+        fcx0 = int(self._width / 2 - self._box_offset_x)
+        fcy0 = int(self._height / 2 - self._box_offset_y)
+        interval = self._frame_ms / 1000.0
+
+        while not self._mag_stop.is_set():
+            t0 = time.perf_counter()
+            provider = self._frame_provider
+            frame = provider() if provider is not None else None
+            if frame is not None:
+                fh, fw = frame.shape[:2]
+                if 0 <= fcx0 < fw and 0 <= fcy0 < fh:
+                    x0, x1 = max(0, fcx0 - src_r), min(fw, fcx0 + src_r)
+                    y0, y1 = max(0, fcy0 - src_r), min(fh, fcy0 + src_r)
+                    crop = frame[y0:y1, x0:x1]
+                    if crop.size:
+                        mag = cv2.resize(
+                            crop, (diameter, diameter), interpolation=cv2.INTER_LINEAR
+                        )
+                        rgb = np.ascontiguousarray(mag[:, :, ::-1])  # BGR -> RGB
+                        img = Image.fromarray(np.dstack([rgb, alpha]), "RGBA")
+                        with self._mag_lock:
+                            self._mag_image = img
+            # Pace to the refresh budget; this thread never busy-spins.
+            self._mag_stop.wait(max(0.0, interval - (time.perf_counter() - t0)))
+
+    def _draw_magnifier(self, canvas) -> None:
+        """Blit the most recently prepared inset (cheap; no image processing)."""
+        with self._mag_lock:
+            img = self._mag_image
+        if img is None:
+            return
+        from PIL import ImageTk
+
+        # Reuse the Tk image buffer (paste) instead of reallocating each frame.
+        if self._mag_photo is None or (
+            self._mag_photo.width(),
+            self._mag_photo.height(),
+        ) != img.size:
+            self._mag_photo = ImageTk.PhotoImage(img)
+        else:
+            self._mag_photo.paste(img)
+        R = self._magnifier_radius
+        cx, cy = self._width / 2, self._height / 2
+        canvas.create_image(cx, cy, image=self._mag_photo)
+        canvas.create_oval(cx - R, cy - R, cx + R, cy + R, outline="#00ffff", width=2)
 
     def _fps_text(self, n_targets: int) -> str:
         cap = inf = 0.0
@@ -298,6 +392,9 @@ class Win32Overlay:
                         anchor="sw",
                         font=("Consolas", 10, "bold"),
                     )
+            if self._magnifier:
+                self._draw_magnifier(canvas)
+
             # Measure the overlay's own paint rate (refresh once per ~0.5s).
             self._fps_count += 1
             since = frame_start - self._fps_t0
@@ -338,6 +435,11 @@ class Win32Overlay:
     def show(self) -> None:
         self._thread.start()
         self._ready.wait(timeout=5.0)
+        if self._magnifier:
+            self._mag_thread = threading.Thread(
+                target=self._magnifier_worker, daemon=True
+            )
+            self._mag_thread.start()
 
     def update_detections(self, detections: List[Detection]) -> None:
         with self._lock:
@@ -353,7 +455,12 @@ class Win32Overlay:
         """Source of live pipeline stats (capture/inference FPS) for the HUD."""
         self._stats_provider = provider
 
+    def set_frame_provider(self, provider: Optional[Callable[[], object]]) -> None:
+        """Source of the latest captured BGR frame (for the magnifier)."""
+        self._frame_provider = provider
+
     def close(self) -> None:
+        self._mag_stop.set()
         if hasattr(self, "_root"):
             try:
                 self._root.after(0, self._on_close)
@@ -385,6 +492,9 @@ class OverlayApp:
         proximity_radius_px: int = 150,
         proximity_border_width: int = 12,
         proximity_flash_hz: float = 4.0,
+        magnifier: bool = False,
+        magnifier_radius: int = 120,
+        magnifier_zoom: float = 2.0,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -416,6 +526,9 @@ class OverlayApp:
             proximity_radius_px=proximity_radius_px,
             proximity_border_width=proximity_border_width,
             proximity_flash_hz=proximity_flash_hz,
+            magnifier=magnifier,
+            magnifier_radius=magnifier_radius,
+            magnifier_zoom=magnifier_zoom,
             distance_colors=distance_colors,
             color_near=color_near,
             color_far=color_far,
@@ -437,6 +550,9 @@ class OverlayApp:
 
     def set_stats_provider(self, provider: Optional[Callable[[], object]]) -> None:
         self._overlay.set_stats_provider(provider)
+
+    def set_frame_provider(self, provider: Optional[Callable[[], object]]) -> None:
+        self._overlay.set_frame_provider(provider)
 
     def close(self) -> None:
         self._overlay.close()

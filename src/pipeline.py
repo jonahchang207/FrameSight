@@ -51,6 +51,8 @@ class FrameSightPipeline:
         self._frame_queue: queue.Queue[CaptureFrame] = queue.Queue(maxsize=max_queue)
         self._latest_detections: List[Detection] = []
         self._det_lock = threading.Lock()
+        self._latest_frame = None
+        self._frame_lock = threading.Lock()
         self._stats = PipelineStats()
         self._stop = threading.Event()
         self._capture_thread: Optional[threading.Thread] = None
@@ -69,6 +71,10 @@ class FrameSightPipeline:
             self._overlay.set_detection_provider(self.overlay_detections)
         if self._overlay is not None and hasattr(self._overlay, "set_stats_provider"):
             self._overlay.set_stats_provider(lambda: self._stats)
+        # Feed the latest captured frame to the overlay so it can draw a
+        # magnified inset of the screen center.
+        if self._overlay is not None and hasattr(self._overlay, "set_frame_provider"):
+            self._overlay.set_frame_provider(self.latest_frame)
         self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._infer_thread = threading.Thread(target=self._infer_loop, daemon=True)
         self._capture_thread.start()
@@ -89,6 +95,8 @@ class FrameSightPipeline:
             loop_start = time.perf_counter()
             frame = self._capture.grab()
             cap_count += 1
+            with self._frame_lock:
+                self._latest_frame = frame.bgr
 
             if self._frame_queue.full():
                 try:
@@ -148,6 +156,11 @@ class FrameSightPipeline:
                 self._stats.frames_inferred += inf_count
                 inf_count = 0
                 t0 = time.perf_counter()
+
+    def latest_frame(self):
+        """Most recent captured BGR frame (capture-region pixels), or None."""
+        with self._frame_lock:
+            return self._latest_frame
 
     def overlay_detections(self) -> List[Detection]:
         """Boxes extrapolated to *now* — called by the overlay at paint time.
