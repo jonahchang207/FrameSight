@@ -58,9 +58,9 @@ overlay:
   box_thickness: 2
   show_fps: true          # on-screen HUD: overlay / capture / inference FPS + target count
   colors:
-    default: [0, 255, 128]
-    body: [255, 64, 64]
-    head: [255, 200, 0]
+    default: [0, 255, 0]
+    body: [0, 255, 0]
+    head: [0, 255, 0]
   show_labels: true
   show_confidence: true
   show_center_lines: true  # lines from screen center to each box's 4 corners

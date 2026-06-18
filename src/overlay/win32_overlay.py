@@ -217,19 +217,27 @@ class Win32Overlay:
                 max_dist = math.hypot(cx, cy)
 
             if self._show_center_lines:
+                # Lines from each screen corner to the box's matching corner.
+                screen_corners = (
+                    (0, 0),
+                    (width, 0),
+                    (width, height),
+                    (0, height),
+                )
                 for det in dets:
                     color = self._color_for_detection(det, cx, cy, max_dist)
-                    for corner in (
+                    box_corners = (
                         (det.x1, det.y1),
                         (det.x2, det.y1),
                         (det.x2, det.y2),
                         (det.x1, det.y2),
-                    ):
+                    )
+                    for screen_corner, box_corner in zip(screen_corners, box_corners):
                         canvas.create_line(
-                            cx,
-                            cy,
-                            corner[0],
-                            corner[1],
+                            screen_corner[0],
+                            screen_corner[1],
+                            box_corner[0],
+                            box_corner[1],
                             fill=color,
                             width=self._center_line_width,
                         )
