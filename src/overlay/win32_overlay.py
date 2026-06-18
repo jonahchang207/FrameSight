@@ -234,18 +234,19 @@ class Win32Overlay:
                     (0, height),
                 )
                 for det in dets:
-                    box_corners = (
-                        (det.x1, det.y1),
-                        (det.x2, det.y1),
-                        (det.x2, det.y2),
-                        (det.x1, det.y2),
-                    )
-                    for screen_corner, box_corner in zip(screen_corners, box_corners):
+                    # Only draw lines for boxes near the screen center.
+                    # Aim point: horizontally centered, 8/10 up the box height.
+                    bcx = (det.x1 + det.x2) / 2
+                    bcy = det.y2 - 0.8 * (det.y2 - det.y1)
+                    if math.hypot(bcx - cx, bcy - cy) > self._proximity_radius_px:
+                        continue
+                    # Arrows from each screen corner to the box's aim point.
+                    for screen_corner in screen_corners:
                         canvas.create_line(
                             screen_corner[0],
                             screen_corner[1],
-                            box_corner[0],
-                            box_corner[1],
+                            bcx,
+                            bcy,
                             fill="#00ff00",
                             width=self._center_line_width,
                             dash=(6, 4),
