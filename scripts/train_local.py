@@ -45,7 +45,7 @@ def main() -> int:
     if not train_img.is_dir() or not any(train_img.iterdir()):
         raise SystemExit(f"No training images in {train_img}")
 
-    class_names = cfg.get("training", {}).get("names", ["enemy", "enemy_head"])
+    class_names = cfg.get("training", {}).get("names", ["body", "head"])
     _prepare_data_yaml(data_yaml, class_names)
 
     train_cfg = cfg.get("training", {})

@@ -132,9 +132,9 @@ def _build_ontology(cfg: dict) -> dict:
     raw = cfg.get("labeling", {}).get("ontology", {})
     if not raw:
         return {
-            "valorant player": "enemy",
-            "person": "enemy",
-            "human head": "enemy_head",
+            "valorant player": "body",
+            "person": "body",
+            "human head": "head",
         }
     return {str(k): str(v) for k, v in raw.items()}
 
@@ -211,8 +211,8 @@ def label_frames(frames_dir: Path, dataset_dir: Path, cfg: dict) -> None:
         f"({labeling_cfg.get('base_model', 'owlv2')})..."
     )
     print("  Target classes:")
-    print("    enemy      = player BODY (full character / torso)")
-    print("    enemy_head = HEAD only")
+    print("    body = player BODY (full character / torso)")
+    print("    head = HEAD only")
     for caption, cls_name in ontology_map.items():
         print(f"    prompt: \"{caption}\" -> {cls_name}")
 
@@ -278,7 +278,7 @@ def split_train_valid(dataset_dir: Path, val_fraction: float, seed: int) -> None
 
 
 def _print_label_class_counts(dataset_dir: Path, class_names: list[str]) -> None:
-    """Summarize how many boxes were written per class (0=enemy body, 1=head)."""
+    """Summarize how many boxes were written per class (0=body, 1=head)."""
     counts = {name: 0 for name in class_names}
     for split in ("train", "valid"):
         lbl_dir = dataset_dir / split / "labels"
@@ -295,10 +295,10 @@ def _print_label_class_counts(dataset_dir: Path, class_names: list[str]) -> None
     print("  Label counts:")
     for name in class_names:
         print(f"    {name}: {counts[name]}")
-    if counts.get("enemy", 0) == 0:
-        print("  WARNING: no enemy (body) labels — try lowering box_threshold or edit ontology")
-    if counts.get("enemy_head", 0) == 0:
-        print("  WARNING: no enemy_head labels — strengthen head prompts in autodistill.yaml")
+    if counts.get("body", 0) == 0:
+        print("  WARNING: no body labels — try lowering box_threshold or edit ontology")
+    if counts.get("head", 0) == 0:
+        print("  WARNING: no head labels — strengthen head prompts in autodistill.yaml")
 
 
 def write_data_yaml(dataset_dir: Path, class_names: list[str]) -> Path:
@@ -410,7 +410,7 @@ def main() -> int:
     publish_dir = _resolve(paths.get("publish_dir", "fn.v1i.yolov8"))
 
     video_cfg = cfg.get("video", {})
-    class_names = cfg.get("classes", ["enemy", "enemy_head"])
+    class_names = cfg.get("classes", ["body", "head"])
 
     videos_dir.mkdir(parents=True, exist_ok=True)
 

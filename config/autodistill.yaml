@@ -21,24 +21,24 @@ labeling:
   base_model: owlvit
   box_threshold: 0.18
   text_threshold: 0.18
-  # Prompts → YOLO class: enemy = player BODY, enemy_head = HEAD only
+  # Prompts → YOLO class: body = player BODY, head = HEAD only
   ontology:
-    "valorant player full body": enemy
-    "video game fps player character body": enemy
-    "shooter game enemy player torso and legs": enemy
-    "valorant agent standing": enemy
-    "video game character head only": enemy_head
-    "valorant player head and face": enemy_head
-    "fps game enemy head": enemy_head
-    "human head in video game": enemy_head
+    "valorant player full body": body
+    "video game fps player character body": body
+    "shooter game enemy player torso and legs": body
+    "valorant agent standing": body
+    "video game character head only": head
+    "valorant player head and face": head
+    "fps game enemy head": head
+    "human head in video game": head
 
 split:
   val_fraction: 0.15
   seed: 42
 
 classes:
-  - enemy
-  - enemy_head
+  - body
+  - head
 
 colab:
   epochs: 100

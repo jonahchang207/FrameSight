@@ -14,6 +14,7 @@ fn.v1i.yolov8/
 fn.v1i.yolov8.zip
 weights/*.pt
 !weights/.gitkeep
+!weights/best.pt
 runs/
 *.zip
 .DS_Store

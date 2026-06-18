@@ -75,7 +75,7 @@ training:
   epochs: 100      # reduce to 50 for a quicker test run
   batch: 16        # lower to 8 or 4 if CUDA out-of-memory
   patience: 20
-  names: ['enemy', 'enemy_head']
+  names: ['body', 'head']
 
 model:
   base_checkpoint: yolo11n.pt   # nano = fastest
@@ -120,7 +120,7 @@ Or:
 python -m src.main
 ```
 
-- Full-screen capture + detection boxes (red = `enemy`, yellow = `enemy_head`)
+- Full-screen capture + detection boxes (red = `body`, yellow = `head`)
 - **Ctrl+C** in the terminal to quit
 
 ### OBS recording

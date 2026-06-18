@@ -110,8 +110,8 @@ class Win32Overlay:
         self._color_far = color_far
         self._distance_max_px = distance_max_px
         self._class_colors = class_colors or {
-            "enemy": (255, 64, 64),
-            "enemy_head": (255, 200, 0),
+            "body": (255, 64, 64),
+            "head": (255, 200, 0),
         }
         self._default_rgb = (0, 255, 128)
         # Precompute hex strings once so the fixed-color path is a dict lookup

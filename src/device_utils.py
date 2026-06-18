@@ -77,6 +77,20 @@ def dml_available() -> bool:
     return "DmlExecutionProvider" in ort.get_available_providers()
 
 
+def rocm_available() -> bool:
+    """True when a ROCm/HIP PyTorch build is installed and sees the GPU.
+
+    ROCm presents through torch's CUDA API (``torch.cuda.is_available()``), so we
+    distinguish it from a real NVIDIA CUDA build via ``torch.version.hip``. Used to
+    let AMD GPUs train (Ultralytics device "0") while the overlay stays on ONNX DML.
+    """
+    try:
+        import torch
+    except ImportError:
+        return False
+    return bool(getattr(torch.version, "hip", None)) and torch.cuda.is_available()
+
+
 def detect_accelerator() -> AcceleratorInfo:
     """Pick the best training + inference stack for this machine."""
     names = tuple(_windows_gpu_names())
@@ -95,6 +109,18 @@ def detect_accelerator() -> AcceleratorInfo:
 
     if sys.platform == "win32" and dml_available() and set(vendors) & {"amd", "intel"}:
         vendor = "AMD" if "amd" in vendors else "Intel"
+        # ROCm PyTorch (when installed) trains on the GPU via the CUDA-compatible
+        # API; the overlay still uses the tuned ONNX DirectML path either way.
+        if rocm_available():
+            return AcceleratorInfo(
+                train_device="0",
+                inference_backend="onnx_dml",
+                inference_device="cpu",
+                backend="dml",
+                gpu_names=names,
+                vendors=vendors,
+                message=f"{vendor} GPU via ROCm (training) + ONNX DirectML (overlay)",
+            )
         return AcceleratorInfo(
             train_device="cpu",
             inference_backend="onnx_dml",

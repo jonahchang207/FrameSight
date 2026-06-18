@@ -17,7 +17,7 @@ Write-Host "Verifying OWL-ViT import..." -ForegroundColor Cyan
 from autodistill.detection import CaptionOntology
 from autodistill_owl_vit import OWLViT
 import transformers
-m = OWLViT(ontology=CaptionOntology({'person': 'enemy'}))
+m = OWLViT(ontology=CaptionOntology({'person': 'body'}))
 print('OK  transformers', transformers.__version__)
 "@
 

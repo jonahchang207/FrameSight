@@ -58,7 +58,7 @@ FrameSight/
 
 3. Confirm `fn.v1i.yolov8\train\images` has thousands of `.jpg` files.
 
-**Classes:** `enemy`, `enemy_head`
+**Classes:** `body`, `head`
 
 ---
 

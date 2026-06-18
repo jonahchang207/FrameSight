@@ -1,6 +1,6 @@
 # AutoDistill pipeline — Valorant footage → labeled dataset → Colab train
 
-Turn 1920×1080 gameplay clips into a YOLO dataset (`enemy`, `enemy_head`) without hand-labeling every frame.
+Turn 1920×1080 gameplay clips into a YOLO dataset (`body`, `head`) without hand-labeling every frame.
 
 ---
 
@@ -50,7 +50,7 @@ FrameSight/
 - 1920×1080 footage works best (pipeline can resize to that size).
 - **Every frame** is extracted by default (`every_frame: true`). A 10 min @ 60 fps clip ≈ 36,000 images — ensure you have disk space.
 - To sample instead, set `every_frame: false` and `extract_fps: 3` in `config/autodistill.yaml`.
-- Clear enemy visibility improves OWL labels; review a few frames before Colab training.
+- Clear player visibility improves OWL labels; review a few frames before Colab training.
 
 ---
 
@@ -78,9 +78,9 @@ video:
 labeling:
   base_model: owlv2
   ontology:
-    "valorant player": enemy
-    "person": enemy
-    "human head": enemy_head
+    "valorant player": body
+    "person": body
+    "human head": head
 ```
 
 AutoDistill is **approximate** — spot-check labels in `data/autodistill/dataset/train/images` and adjust `ontology` if heads/players are missed.
@@ -124,7 +124,7 @@ data/autodistill/
   framesight_dataset.zip   # for Colab
 ```
 
-Classes match FrameSight: `enemy`, `enemy_head`.
+Classes match FrameSight: `body`, `head`.
 
 ---
 
