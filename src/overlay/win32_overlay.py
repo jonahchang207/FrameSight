@@ -361,7 +361,7 @@ class Win32Overlay:
                             screen_corner[1],
                             box_corner[0],
                             box_corner[1],
-                            fill="#ff0000",
+                            fill="#00ff00",
                             width=self._center_line_width,
                             dash=(6, 12),
                             arrow="last",
