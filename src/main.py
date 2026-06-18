@@ -120,6 +120,7 @@ def main() -> int:
             magnifier=bool(overlay_cfg.get("magnifier", False)),
             magnifier_radius=int(overlay_cfg.get("magnifier_radius", 120)),
             magnifier_zoom=float(overlay_cfg.get("magnifier_zoom", 2.0)),
+            magnifier_hold_rmb=bool(overlay_cfg.get("magnifier_hold_rmb", True)),
             distance_colors=bool(overlay_cfg.get("distance_colors", False)),
             color_near=_tuple_rgb(overlay_cfg.get("color_near", [255, 64, 64])),
             color_far=_tuple_rgb(overlay_cfg.get("color_far", [0, 255, 128])),

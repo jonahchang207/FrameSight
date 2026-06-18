@@ -29,6 +29,12 @@ LWA_COLORKEY = 0x00000001
 # frames fed to the detector and magnifier are clean game pixels instead of
 # the overlay's own black canvas (which otherwise causes a black self-capture).
 WDA_EXCLUDEFROMCAPTURE = 0x00000011
+VK_RBUTTON = 0x02
+
+
+def _rmb_down() -> bool:
+    """True while the right mouse button is held (global, focus-independent)."""
+    return bool(ctypes.windll.user32.GetAsyncKeyState(VK_RBUTTON) & 0x8000)
 
 
 def _apply_overlay_styles(hwnd: int, *, click_through: bool, topmost: bool) -> None:
@@ -100,6 +106,7 @@ class Win32Overlay:
         magnifier: bool = False,
         magnifier_radius: int = 120,
         magnifier_zoom: float = 2.0,
+        magnifier_hold_rmb: bool = True,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -131,6 +138,7 @@ class Win32Overlay:
         self._magnifier = magnifier
         self._magnifier_radius = max(8, magnifier_radius)
         self._magnifier_zoom = max(1.0, magnifier_zoom)
+        self._magnifier_hold_rmb = magnifier_hold_rmb
         self._frame_provider: Optional[Callable[[], object]] = None
         self._mag_photo = None  # holds a ref so the PhotoImage isn't GC'd
         # The heavy crop/resize/mask runs on its own thread; the paint thread
@@ -196,8 +204,10 @@ class Win32Overlay:
 
         while not self._mag_stop.is_set():
             t0 = time.perf_counter()
+            # Only do the heavy crop/resize while the magnifier is actually shown.
+            active = not self._magnifier_hold_rmb or _rmb_down()
             provider = self._frame_provider
-            frame = provider() if provider is not None else None
+            frame = provider() if (active and provider is not None) else None
             if frame is not None:
                 fh, fw = frame.shape[:2]
                 if 0 <= fcx0 < fw and 0 <= fcy0 < fh:
@@ -327,23 +337,33 @@ class Win32Overlay:
                     (width, height),
                     (0, height),
                 )
+                # Only the single box nearest the screen center gets arrows.
+                target = None
+                best = self._proximity_radius_px
                 for det in dets:
-                    # Only draw lines for boxes near the screen center.
-                    # Aim point: horizontally centered, 8/10 up the box height.
                     bcx = (det.x1 + det.x2) / 2
-                    bcy = det.y2 - 0.8 * (det.y2 - det.y1)
-                    if math.hypot(bcx - cx, bcy - cy) > self._proximity_radius_px:
-                        continue
-                    # Arrows from each screen corner to the box's aim point.
-                    for screen_corner in screen_corners:
+                    bcy = (det.y1 + det.y2) / 2
+                    dist = math.hypot(bcx - cx, bcy - cy)
+                    if dist <= best:
+                        best = dist
+                        target = det
+                if target is not None:
+                    # Arrows from each screen corner to the box's matching corner.
+                    box_corners = (
+                        (target.x1, target.y1),
+                        (target.x2, target.y1),
+                        (target.x2, target.y2),
+                        (target.x1, target.y2),
+                    )
+                    for screen_corner, box_corner in zip(screen_corners, box_corners):
                         canvas.create_line(
                             screen_corner[0],
                             screen_corner[1],
-                            bcx,
-                            bcy,
-                            fill="#00ff00",
+                            box_corner[0],
+                            box_corner[1],
+                            fill="#ff0000",
                             width=self._center_line_width,
-                            dash=(6, 4),
+                            dash=(6, 12),
                             arrow="last",
                             arrowshape=(8, 10, 3),
                         )
@@ -392,7 +412,7 @@ class Win32Overlay:
                         anchor="sw",
                         font=("Consolas", 10, "bold"),
                     )
-            if self._magnifier:
+            if self._magnifier and (not self._magnifier_hold_rmb or _rmb_down()):
                 self._draw_magnifier(canvas)
 
             # Measure the overlay's own paint rate (refresh once per ~0.5s).
@@ -495,6 +515,7 @@ class OverlayApp:
         magnifier: bool = False,
         magnifier_radius: int = 120,
         magnifier_zoom: float = 2.0,
+        magnifier_hold_rmb: bool = True,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -529,6 +550,7 @@ class OverlayApp:
             magnifier=magnifier,
             magnifier_radius=magnifier_radius,
             magnifier_zoom=magnifier_zoom,
+            magnifier_hold_rmb=magnifier_hold_rmb,
             distance_colors=distance_colors,
             color_near=color_near,
             color_far=color_far,
