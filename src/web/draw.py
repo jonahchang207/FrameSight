@@ -29,6 +29,9 @@ def draw_detections(
     classes = s.get("classes", {})
     default_color = s.get("default_color", [0, 255, 128])
 
+    h, w = frame.shape[:2]
+    center = (w // 2, h // 2)
+
     for det in detections:
         if det.confidence < conf_min:
             continue
@@ -36,6 +39,14 @@ def draw_detections(
         if style is not None and not style.get("enabled", True):
             continue
         color = _bgr(style["color"] if style else default_color)
+        corners = (
+            (det.x1, det.y1),
+            (det.x2, det.y1),
+            (det.x2, det.y2),
+            (det.x1, det.y2),
+        )
+        for corner in corners:
+            cv2.line(frame, center, corner, color, thickness, cv2.LINE_AA)
         cv2.rectangle(frame, (det.x1, det.y1), (det.x2, det.y2), color, thickness)
 
         if not show_labels:

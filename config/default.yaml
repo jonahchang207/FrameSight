@@ -63,7 +63,7 @@ overlay:
     head: [255, 200, 0]
   show_labels: true
   show_confidence: true
-  show_center_lines: false  # lines from screen center to each box
+  show_center_lines: true  # lines from screen center to each box's 4 corners
   center_line_width: 2
   center_line_target: box_center  # box_center | top_center
   distance_colors: false    # false = fixed per-class colors below (cheaper); true = red→green gradient by distance from screen center

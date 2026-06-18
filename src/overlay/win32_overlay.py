@@ -219,15 +219,20 @@ class Win32Overlay:
             if self._show_center_lines:
                 for det in dets:
                     color = self._color_for_detection(det, cx, cy, max_dist)
-                    tx, ty = _target_point(det, self._center_line_target)
-                    canvas.create_line(
-                        cx,
-                        cy,
-                        tx,
-                        ty,
-                        fill=color,
-                        width=self._center_line_width,
-                    )
+                    for corner in (
+                        (det.x1, det.y1),
+                        (det.x2, det.y1),
+                        (det.x2, det.y2),
+                        (det.x1, det.y2),
+                    ):
+                        canvas.create_line(
+                            cx,
+                            cy,
+                            corner[0],
+                            corner[1],
+                            fill=color,
+                            width=self._center_line_width,
+                        )
 
             for det in dets:
                 color = self._color_for_detection(det, cx, cy, max_dist)
