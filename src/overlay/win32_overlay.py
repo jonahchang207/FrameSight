@@ -86,6 +86,10 @@ class Win32Overlay:
         show_center_arrow: bool = True,
         center_arrow_len: int = 80,
         center_arrow_width: int = 3,
+        proximity_flash: bool = True,
+        proximity_radius_px: int = 150,
+        proximity_border_width: int = 12,
+        proximity_flash_hz: float = 4.0,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -111,6 +115,10 @@ class Win32Overlay:
         self._show_center_arrow = show_center_arrow
         self._center_arrow_len = max(1, center_arrow_len)
         self._center_arrow_width = max(1, center_arrow_width)
+        self._proximity_flash = proximity_flash
+        self._proximity_radius_px = max(1, proximity_radius_px)
+        self._proximity_border_width = max(1, proximity_border_width)
+        self._proximity_flash_hz = max(0.1, proximity_flash_hz)
         self._distance_colors = distance_colors
         self._color_near = color_near
         self._color_far = color_far
@@ -223,7 +231,8 @@ class Win32Overlay:
                 max_dist = math.hypot(cx, cy)
 
             if self._show_center_lines:
-                # Lines from each screen corner to the box's matching corner.
+                # Dashed green lines with small arrowheads, from each screen
+                # corner to the box's matching corner.
                 screen_corners = (
                     (0, 0),
                     (width, 0),
@@ -231,7 +240,6 @@ class Win32Overlay:
                     (0, height),
                 )
                 for det in dets:
-                    color = self._color_for_detection(det, cx, cy, max_dist)
                     box_corners = (
                         (det.x1, det.y1),
                         (det.x2, det.y1),
@@ -244,8 +252,11 @@ class Win32Overlay:
                             screen_corner[1],
                             box_corner[0],
                             box_corner[1],
-                            fill=color,
+                            fill="#00ff00",
                             width=self._center_line_width,
+                            dash=(6, 4),
+                            arrow="last",
+                            arrowshape=(8, 10, 3),
                         )
 
             if self._show_center_arrow and dets:
@@ -273,6 +284,26 @@ class Win32Overlay:
                         width=self._center_arrow_width,
                         arrow="last",
                         arrowshape=(16, 20, 6),
+                    )
+
+            if self._proximity_flash and dets:
+                # Flash a red screen border while a box is near the center.
+                nearest = min(
+                    math.hypot((d.x1 + d.x2) / 2 - cx, (d.y1 + d.y2) / 2 - cy)
+                    for d in dets
+                )
+                # Blink on/off at the configured rate (on for the first half of
+                # each period) so the border pulses rather than sitting solid.
+                blink_on = (frame_start * self._proximity_flash_hz) % 1.0 < 0.5
+                if nearest <= self._proximity_radius_px and blink_on:
+                    bw = self._proximity_border_width
+                    canvas.create_rectangle(
+                        bw / 2,
+                        bw / 2,
+                        width - bw / 2,
+                        height - bw / 2,
+                        outline="#ff0000",
+                        width=bw,
                     )
 
             for det in dets:
@@ -385,6 +416,10 @@ class OverlayApp:
         show_center_arrow: bool = True,
         center_arrow_len: int = 80,
         center_arrow_width: int = 3,
+        proximity_flash: bool = True,
+        proximity_radius_px: int = 150,
+        proximity_border_width: int = 12,
+        proximity_flash_hz: float = 4.0,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
         color_far: Tuple[int, int, int] = (0, 255, 128),
@@ -415,6 +450,10 @@ class OverlayApp:
             show_center_arrow=show_center_arrow,
             center_arrow_len=center_arrow_len,
             center_arrow_width=center_arrow_width,
+            proximity_flash=proximity_flash,
+            proximity_radius_px=proximity_radius_px,
+            proximity_border_width=proximity_border_width,
+            proximity_flash_hz=proximity_flash_hz,
             distance_colors=distance_colors,
             color_near=color_near,
             color_far=color_far,

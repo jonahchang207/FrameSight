@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional, Set
 
 import numpy as np
 from ultralytics import YOLO
@@ -31,6 +31,7 @@ class YoloDetector:
         device: str = "",
         max_det: int = 300,
         agnostic_nms: bool = False,
+        disabled_classes: Iterable[str] | None = None,
     ) -> None:
         path = Path(weights)
         if not path.exists():
@@ -44,6 +45,7 @@ class YoloDetector:
         self._device = device or None
         self._max_det = max_det
         self._agnostic_nms = agnostic_nms
+        self._disabled_classes: Set[str] = set(disabled_classes or ())
         self._names: dict[int, str] = {}
 
     @property
@@ -78,6 +80,8 @@ class YoloDetector:
         out: List[Detection] = []
         for (x1, y1, x2, y2), c, cid in zip(xyxy, confs, cls_ids):
             label = self._names.get(int(cid), str(int(cid)))
+            if label in self._disabled_classes:
+                continue
             out.append(
                 Detection(
                     x1=int(x1),

@@ -219,6 +219,7 @@ def create_detector(
     agnostic_nms: bool = False,
     half: bool = True,
     io_binding: bool = False,
+    disabled_classes: "list[str] | set[str] | None" = None,
 ):
     """Build a detector using CUDA, DirectML (lean ONNX Runtime), or CPU."""
     accel: AcceleratorInfo = resolve_inference(device_requested)
@@ -256,6 +257,7 @@ def create_detector(
             agnostic_nms=agnostic_nms,
             providers=["DmlExecutionProvider", "CPUExecutionProvider"],
             io_binding=io_binding,
+            disabled_classes=disabled_classes,
         )
 
     print(f"Inference: {accel.message}")
@@ -267,6 +269,7 @@ def create_detector(
         device=accel.inference_device,
         max_det=max_det,
         agnostic_nms=agnostic_nms,
+        disabled_classes=disabled_classes,
     )
 
 

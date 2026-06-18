@@ -61,6 +61,8 @@ def main() -> int:
     h, w = probe.bgr.shape[:2]
 
     weights = _resolve_weights(cfg)
+    # detect_head: false skips the 'head' class entirely (never decoded or drawn).
+    disabled_classes = set() if model_cfg.get("detect_head", True) else {"head"}
     detector = create_detector(
         weights=weights,
         imgsz=model_cfg.get("imgsz", 640),
@@ -71,6 +73,7 @@ def main() -> int:
         agnostic_nms=bool(model_cfg.get("agnostic_nms", False)),
         half=bool(model_cfg.get("half", True)),
         io_binding=bool(model_cfg.get("io_binding", False)),
+        disabled_classes=disabled_classes,
     )
 
     overlay = None
@@ -113,6 +116,10 @@ def main() -> int:
             show_center_arrow=bool(overlay_cfg.get("show_center_arrow", True)),
             center_arrow_len=int(overlay_cfg.get("center_arrow_len", 80)),
             center_arrow_width=int(overlay_cfg.get("center_arrow_width", 3)),
+            proximity_flash=bool(overlay_cfg.get("proximity_flash", True)),
+            proximity_radius_px=int(overlay_cfg.get("proximity_radius_px", 150)),
+            proximity_border_width=int(overlay_cfg.get("proximity_border_width", 12)),
+            proximity_flash_hz=float(overlay_cfg.get("proximity_flash_hz", 4.0)),
             distance_colors=bool(overlay_cfg.get("distance_colors", False)),
             color_near=_tuple_rgb(overlay_cfg.get("color_near", [255, 64, 64])),
             color_far=_tuple_rgb(overlay_cfg.get("color_far", [0, 255, 128])),

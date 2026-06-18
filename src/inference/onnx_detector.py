@@ -94,7 +94,9 @@ class OnnxDetector:
         agnostic_nms: bool = False,
         providers: list[str] | None = None,
         io_binding: bool = False,
+        disabled_classes: "list[str] | set[str] | None" = None,
     ) -> None:
+        self._disabled_classes = set(disabled_classes or ())
         so = ort.SessionOptions()
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         providers = providers or ["CPUExecutionProvider"]
@@ -148,6 +150,11 @@ class OnnxDetector:
                 self._names = {int(k): str(v) for k, v in parsed.items()}
             except (ValueError, SyntaxError):
                 self._names = {}
+        # Class ids to drop entirely (never decoded, NMS'd, or returned).
+        self._disabled_ids = np.array(
+            [cid for cid, name in self._names.items() if name in self._disabled_classes],
+            dtype=int,
+        )
 
     def _rebuild_on_cpu(self) -> None:
         """Recreate the session on the CPU EP (used when DirectML init/run fails)."""
@@ -231,6 +238,8 @@ class OnnxDetector:
         cls = scores_all.argmax(1)
         conf = scores_all[np.arange(scores_all.shape[0]), cls]
         keep = conf >= self._conf
+        if self._disabled_ids.size:
+            keep &= ~np.isin(cls, self._disabled_ids)
         if not np.any(keep):
             return []
         boxes = preds[keep, :4]
