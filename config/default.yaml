@@ -12,9 +12,8 @@ capture:
 
 model:
   # After Colab training, place best.pt here or set path to your export
-  weights: weights/best.pt
-  # Fast defaults: yolo11n.pt (nano) or yolov8n.pt
-  base_checkpoint: yolo11n.pt
+  weights: weights/best_288x512.onnx
+  base_checkpoint: weights/best_288x512.onnx
   # imgsz: int = square (letterboxed), or [h, w] = rectangular graph (no padding).
   # [288, 512] is exactly 16:9, matching the 1280x720 region above — so the model
   # spends *zero* compute on gray padding bars and gets 512px of target width
