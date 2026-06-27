@@ -73,7 +73,7 @@ overlay:
   proximity_flash_hz: 4.0   # blink rate of the red border
   magnifier: true           # zoomed circular inset of the screen center
   magnifier_radius: 80      # on-screen radius of the magnifier circle (px)
-  magnifier_zoom: 2.0       # magnification factor (2.0 = 200%)
+  magnifier_zoom: 1.5       # magnification factor (1.5 = 150%)
   magnifier_hold_rmb: true  # only show the magnifier while right mouse is held
   distance_colors: false    # false = fixed per-class colors below (cheaper); true = red→green gradient by distance from screen center
   color_near: [255, 64, 64]   # red — target near crosshair (only used when distance_colors: true)

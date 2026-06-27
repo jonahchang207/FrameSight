@@ -58,6 +58,14 @@ def _apply_overlay_styles(hwnd: int, *, click_through: bool, topmost: bool) -> N
         pass
 
 
+# Visually distinct colors cycled per-detection index each frame.
+_DET_PALETTE = [
+    "#ff4444", "#44ff44", "#4488ff", "#ffdd00",
+    "#ff44ff", "#00ffdd", "#ff8800", "#88ff00",
+    "#ff0088", "#00aaff", "#aaff00", "#ff00aa",
+]
+
+
 def _target_point(det: Detection, target: str) -> Tuple[float, float]:
     tx = (det.x1 + det.x2) / 2
     if target == "top_center":
@@ -104,8 +112,8 @@ class Win32Overlay:
         proximity_border_width: int = 12,
         proximity_flash_hz: float = 4.0,
         magnifier: bool = False,
-        magnifier_radius: int = 120,
-        magnifier_zoom: float = 2.0,
+        magnifier_radius: int = 80,
+        magnifier_zoom: float = 1.5,
         magnifier_hold_rmb: bool = True,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
@@ -328,40 +336,24 @@ class Win32Overlay:
             if max_dist is None or max_dist <= 0:
                 max_dist = math.hypot(cx, cy)
 
+            # Assign each detection a unique palette color by index.
+            det_colors = [
+                _DET_PALETTE[i % len(_DET_PALETTE)] for i in range(len(dets))
+            ]
+
             if self._show_center_lines:
-                # Dashed green lines with small arrowheads, from each screen
-                # corner to the box's matching corner.
-                screen_corners = (
-                    (0, 0),
-                    (width, 0),
-                    (width, height),
-                    (0, height),
-                )
-                # Only the single box nearest the screen center gets arrows.
-                target = None
-                best = self._proximity_radius_px
-                for det in dets:
-                    bcx = (det.x1 + det.x2) / 2
-                    bcy = (det.y1 + det.y2) / 2
-                    dist = math.hypot(bcx - cx, bcy - cy)
-                    if dist <= best:
-                        best = dist
-                        target = det
-                if target is not None:
-                    # Arrows from each screen corner to the box's matching corner.
-                    box_corners = (
-                        (target.x1, target.y1),
-                        (target.x2, target.y1),
-                        (target.x2, target.y2),
-                        (target.x1, target.y2),
-                    )
-                    for screen_corner, box_corner in zip(screen_corners, box_corners):
+                # Dashed lines from screen center to each corner of every box.
+                for det, color in zip(dets, det_colors):
+                    for corner in (
+                        (det.x1, det.y1),
+                        (det.x2, det.y1),
+                        (det.x2, det.y2),
+                        (det.x1, det.y2),
+                    ):
                         canvas.create_line(
-                            screen_corner[0],
-                            screen_corner[1],
-                            box_corner[0],
-                            box_corner[1],
-                            fill="#00ff00",
+                            cx, cy,
+                            corner[0], corner[1],
+                            fill=color,
                             width=self._center_line_width,
                             dash=(6, 12),
                             arrow="last",
@@ -388,8 +380,7 @@ class Win32Overlay:
                         width=bw,
                     )
 
-            for det in dets:
-                color = self._color_for_detection(det, cx, cy, max_dist)
+            for det, color in zip(dets, det_colors):
                 canvas.create_rectangle(
                     det.x1,
                     det.y1,
@@ -513,8 +504,8 @@ class OverlayApp:
         proximity_border_width: int = 12,
         proximity_flash_hz: float = 4.0,
         magnifier: bool = False,
-        magnifier_radius: int = 120,
-        magnifier_zoom: float = 2.0,
+        magnifier_radius: int = 80,
+        magnifier_zoom: float = 1.5,
         magnifier_hold_rmb: bool = True,
         distance_colors: bool = False,
         color_near: Tuple[int, int, int] = (255, 64, 64),
