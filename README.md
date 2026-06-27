@@ -27,15 +27,29 @@ FrameSight captures your display at up to **165 Hz**, runs **YOLO11n** on the GP
 >
 > <!-- ![FrameSight in action](assets/screenshot.png) -->
 
+## Quick Start (no terminal)
+
+If you just want to run FrameSight without touching a terminal:
+
+1. **Clone or download** this repository.
+2. **Double-click `Setup FrameSight.bat`** — a setup wizard opens, installs all dependencies into a local virtual environment, and detects your GPU automatically.
+3. **Double-click `framesight_launcher.pyw`** anytime after that — a small status window appears with live FPS, an **OPEN HUD** button, and a **STOP** button. No terminal ever opens.
+4. Click **OPEN HUD** (or go to `http://localhost:5000`) to adjust colors, magnifier size, line width, and more in real time.
+
+> **Python 3.10+** must be installed first. Get it from [python.org](https://www.python.org/downloads/) and check *"Add python.exe to PATH"* during install.
+
+---
+
 ## Features
 
 - **High-FPS capture** — DXGI Desktop Duplication via `dxcam`, targeting your monitor's refresh (up to 165 Hz). The overlay sets `WDA_EXCLUDEFROMCAPTURE`, so it never captures itself.
 - **GPU detection** — YOLO11n with automatic backend selection: CUDA (NVIDIA), DirectML + FP16 (AMD/Intel), or CPU. Forward/velocity model extrapolates boxes to paint time to hide inference latency.
-- **Cyan detection boxes** — one per target, with optional label + confidence.
-- **Green corner arrows** — dashed arrows from the four screen corners to the box **nearest the screen center** (only one target at a time).
-- **200% magnifier** — a circular zoomed inset of the screen center that appears **while you hold the right mouse button**. It runs on its own worker thread so box rendering is never blocked.
+- **Per-detection colors** — each detected target gets its own unique color from a 12-color palette, applied to the box, label, and lines simultaneously.
+- **Center-to-corner lines** — dashed lines radiate from the screen center to all four corners of every detection box, one color per target.
+- **Magnifier** — a circular zoomed inset of the screen center that appears **while you hold the right mouse button**. Runs on its own worker thread so box rendering is never blocked.
+- **Live HUD panel** — browser-based control panel at `http://localhost:5000`. Adjust box thickness, colors, magnifier, proximity flash, and more without restarting.
 - **Per-class toggles** — disable a class entirely (e.g. `detect_head: false`) so it's never inferred or drawn.
-- **Live HUD** — overlay / capture / inference FPS and target count.
+- **FPS overlay** — overlay / capture / inference FPS and target count drawn on screen.
 
 ## Requirements
 
@@ -43,7 +57,7 @@ FrameSight captures your display at up to **165 Hz**, runs **YOLO11n** on the GP
 - **Python 3.10+**
 - A GPU is recommended (NVIDIA CUDA, or AMD/Intel via DirectML). CPU works but is slower.
 
-## Install
+## Install (terminal / developer)
 
 ```powershell
 git clone https://github.com/jonahchang207/FrameSight.git
@@ -53,7 +67,7 @@ cd FrameSight
 
 This installs the core dependencies (`ultralytics`, `opencv-python-headless`, `numpy`, `dxcam`, `Pillow`) plus the DirectML ONNX Runtime on Windows. See **[SETUP.md](SETUP.md)** for Python, dataset, and dependency details.
 
-## Run
+## Run (terminal / developer)
 
 ```powershell
 .\scripts\train.ps1   # train weights (or place your own at weights/best.pt)
@@ -66,12 +80,13 @@ This installs the core dependencies (`ultralytics`, `opencv-python-headless`, `n
 
 | Action | Effect |
 |--------|--------|
-| **Hold right mouse button** | Show the 200% magnifier at the screen center |
+| **Hold right mouse button** | Show the magnifier at the screen center |
+| **`http://localhost:5000`** | Open the HUD control panel in your browser |
 | **Ctrl+C** (in terminal) | Quit FrameSight |
 
 ## Configuration
 
-All settings live in **`config/default.yaml`** (copy to `config/local.yaml` to override without touching the default). Highlights:
+All settings live in **`config/default.yaml`** (copy to `config/local.yaml` to override without touching the default). Most settings can also be changed live via the HUD panel at `http://localhost:5000`. Highlights:
 
 ```yaml
 capture:
@@ -81,20 +96,17 @@ capture:
 model:
   weights: weights/best.pt
   conf: 0.7            # detection confidence threshold
-  detect_head: false  # false = never detect or draw the 'head' class (body only)
-  device: auto        # auto | cpu | 0 (CUDA) | dml
+  detect_head: false   # false = never detect or draw the 'head' class (body only)
+  device: auto         # auto | cpu | 0 (CUDA) | dml
 
 overlay:
-  colors:
-    default: [0, 255, 255]   # cyan boxes (RGB)
   box_thickness: 2
-  show_center_lines: true    # green dashed corner arrows to the nearest box
+  show_center_lines: true    # dashed lines from screen center to each box's corners
   center_line_width: 2
-  proximity_radius_px: 150   # "near center" radius for the corner arrows
   proximity_flash: false     # red screen border when a target nears center
   magnifier: true            # circular zoom inset of the screen center
   magnifier_radius: 80       # on-screen radius of the magnifier circle (px)
-  magnifier_zoom: 2.0        # magnification factor (2.0 = 200%)
+  magnifier_zoom: 1.5        # magnification factor (1.5 = 150%)
   magnifier_hold_rmb: true   # only show the magnifier while RMB is held
 ```
 
