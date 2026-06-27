@@ -18,6 +18,7 @@ if sys.platform != "win32":
 
 from src.capture.screen_capture import create_capture
 from src.config_loader import ROOT, load_config
+from src import hud_server
 from src.inference.box_smoother import BoxSmoother
 from src.inference.detector_factory import create_detector
 from src.inference.forward_model import ForwardPredictor
@@ -127,6 +128,7 @@ def main() -> int:
             distance_max_px=overlay_cfg.get("distance_max_px"),
         )
         overlay.show()
+        hud_server.start(overlay)
 
     smooth_cfg = cfg.get("smoothing", {})
     smoother = None

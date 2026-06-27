@@ -160,6 +160,7 @@ class Win32Overlay:
         self._color_near = color_near
         self._color_far = color_far
         self._distance_max_px = distance_max_px
+        self._det_palette = list(_DET_PALETTE)
         self._class_colors = class_colors or {
             "body": (255, 64, 64),
             "head": (255, 200, 0),
@@ -337,9 +338,8 @@ class Win32Overlay:
                 max_dist = math.hypot(cx, cy)
 
             # Assign each detection a unique palette color by index.
-            det_colors = [
-                _DET_PALETTE[i % len(_DET_PALETTE)] for i in range(len(dets))
-            ]
+            pal = self._det_palette
+            det_colors = [pal[i % len(pal)] for i in range(len(dets))]
 
             if self._show_center_lines:
                 # Dashed lines from screen center to each corner of every box.
