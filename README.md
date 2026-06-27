@@ -9,7 +9,6 @@
 <p align="center">
   📖 <a href="https://jonahchang207.github.io/FrameSight/">Documentation</a> ·
   <a href="SETUP.md">Setup</a> ·
-  <a href="TRAIN.md">Train</a> ·
   <a href="https://github.com/jonahchang207/FrameSight">GitHub</a>
 </p>
 
@@ -57,7 +56,7 @@ If you just want to run FrameSight without touching a terminal:
 - **Python 3.10+**
 - A GPU is recommended (NVIDIA CUDA, or AMD/Intel via DirectML). CPU works but is slower.
 
-## Install (terminal / developer)
+## Install (advanced / terminal)
 
 ```powershell
 git clone https://github.com/jonahchang207/FrameSight.git
@@ -65,16 +64,15 @@ cd FrameSight
 .\scripts\setup_windows.ps1   # creates .venv and installs requirements
 ```
 
-This installs the core dependencies (`ultralytics`, `opencv-python-headless`, `numpy`, `dxcam`, `Pillow`) plus the DirectML ONNX Runtime on Windows. See **[SETUP.md](SETUP.md)** for Python, dataset, and dependency details.
+See **[SETUP.md](SETUP.md)** for full dependency details.
 
-## Run (terminal / developer)
+## Run (advanced / terminal)
 
 ```powershell
-.\scripts\train.ps1   # train weights (or place your own at weights/best.pt)
 .\scripts\run.ps1     # launch the live overlay
 ```
 
-`run.ps1` activates the venv and starts `python -m src.main`. Press **Ctrl+C** in the terminal to quit.
+`run.ps1` activates the venv and starts `python -m src.main`. Press **Ctrl+C** to quit.
 
 ### Controls
 
@@ -114,12 +112,9 @@ overlay:
 
 | Guide | Description |
 |-------|-------------|
-| **[SETUP.md](SETUP.md)** | Install Python, dataset, and dependencies |
-| **[TRAIN.md](TRAIN.md)** | Train the model and run the overlay |
-| **[AUTODISTILL.md](AUTODISTILL.md)** | Label footage with AutoDistill → train in Colab |
-| **[colab/FrameSight_Complete.ipynb](colab/FrameSight_Complete.ipynb)** | Full Colab notebook (upload → train → download → overlay) |
+| **[SETUP.md](SETUP.md)** | Install Python and dependencies |
 
-Full feature overview and pipeline details: **[jonahchang207.github.io/FrameSight](https://jonahchang207.github.io/FrameSight/)**
+Full feature overview: **[jonahchang207.github.io/FrameSight](https://jonahchang207.github.io/FrameSight/)**
 
 ## Ethics
 
