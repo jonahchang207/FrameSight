@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import List
 
 from src.inference.detector import Detection
@@ -35,6 +35,7 @@ def _iou(a: Detection, b: Detection) -> float:
 class _Track:
     detection: Detection  # smoothed box that gets drawn
     raw: Detection        # last raw detection — matched against, free of EMA lag
+    id: int = 0           # stable identity, carried onto the drawn Detection
     misses: int = 0
 
 
@@ -56,6 +57,7 @@ class BoxSmoother:
         self.match_dist_frac = max(0.0, match_dist_frac)
         self.max_age = max(0, max_age)
         self._tracks: List[_Track] = []
+        self._next_id = 0
 
     def update(self, detections: List[Detection]) -> List[Detection]:
         if not self.enabled:
@@ -80,8 +82,9 @@ class BoxSmoother:
             matched_track_idx.add(ti)
             matched_det_idx.add(di)
             raw = detections[di]
+            tid = self._tracks[ti].id
             prev = self._tracks[ti].detection
-            self._tracks[ti].detection = _smooth_detection(prev, raw, self.alpha)
+            self._tracks[ti].detection = _smooth_detection(prev, raw, self.alpha, tid)
             self._tracks[ti].raw = raw
             self._tracks[ti].misses = 0
 
@@ -91,7 +94,11 @@ class BoxSmoother:
 
         for di, det in enumerate(detections):
             if di not in matched_det_idx:
-                self._tracks.append(_Track(detection=det, raw=det, misses=0))
+                tid = self._next_id
+                self._next_id += 1
+                self._tracks.append(
+                    _Track(detection=replace(det, track_id=tid), raw=det, id=tid)
+                )
 
         self._tracks = [t for t in self._tracks if t.misses <= self.max_age]
         return [t.detection for t in self._tracks]
@@ -120,7 +127,9 @@ class BoxSmoother:
         return None
 
 
-def _smooth_detection(prev: Detection, raw: Detection, alpha: float) -> Detection:
+def _smooth_detection(
+    prev: Detection, raw: Detection, alpha: float, track_id: int
+) -> Detection:
     a = alpha
 
     def blend_int(new: int, old: int) -> int:
@@ -134,4 +143,5 @@ def _smooth_detection(prev: Detection, raw: Detection, alpha: float) -> Detectio
         confidence=a * raw.confidence + (1.0 - a) * prev.confidence,
         class_id=raw.class_id,
         label=raw.label,
+        track_id=track_id,
     )

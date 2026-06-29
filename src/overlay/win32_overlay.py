@@ -88,6 +88,11 @@ def _rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
     return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
 
+def _hex_to_rgb(s: str) -> Tuple[int, int, int]:
+    s = s.lstrip("#")
+    return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+
+
 class Win32Overlay:
     def __init__(
         self,
@@ -161,6 +166,24 @@ class Win32Overlay:
         self._color_far = color_far
         self._distance_max_px = distance_max_px
         self._det_palette = list(_DET_PALETTE)
+        # --- HUD-tunable cosmetics (defaults here; adjust live via the web panel) ---
+        self._box_style = "solid"            # solid | corners | dashed
+        self._box_corner_len = 18            # bracket length for the "corners" style
+        self._box_fill = False               # translucent stipple fill inside boxes
+        self._center_line_style = "corners"  # corners (4 lines) | target (1 line)
+        self._center_line_dashed = True
+        self._center_line_arrow = True
+        self._crosshair = False              # static crosshair at screen center
+        self._crosshair_size = 10
+        self._crosshair_gap = 6
+        self._crosshair_hex = "#00ff88"
+        self._proximity_hex = "#ff0000"      # proximity-flash border color
+        self._magnifier_hex = "#00ffff"      # magnifier ring color
+        self._fps_hex = "#00ff88"            # FPS / stats text color
+        self._label_font_size = 10
+        self._trails = False                 # draw motion trail per tracked target
+        self._trail_len = 20                 # max points kept per trail
+        self._trail_pts: Dict[int, list] = {}  # track_id -> recent centers
         self._class_colors = class_colors or {
             "body": (255, 64, 64),
             "head": (255, 200, 0),
@@ -253,17 +276,18 @@ class Win32Overlay:
         R = self._magnifier_radius
         cx, cy = self._width / 2, self._height / 2
         canvas.create_image(cx, cy, image=self._mag_photo)
-        canvas.create_oval(cx - R, cy - R, cx + R, cy + R, outline="#00ffff", width=2)
+        canvas.create_oval(cx - R, cy - R, cx + R, cy + R, outline=self._magnifier_hex, width=2)
 
     def _fps_text(self, n_targets: int) -> str:
-        cap = inf = 0.0
+        cap = inf = lat = 0.0
         if self._stats_provider is not None:
             stats = self._stats_provider()
             cap = float(getattr(stats, "capture_fps", 0.0) or 0.0)
             inf = float(getattr(stats, "inference_fps", 0.0) or 0.0)
+            lat = float(getattr(stats, "inference_ms", 0.0) or 0.0)
         return (
             f"overlay {self._render_fps:5.1f} | capture {cap:5.1f} | "
-            f"infer {inf:5.1f} fps | targets {n_targets}"
+            f"infer {inf:5.1f} fps ({lat:4.1f}ms) | targets {n_targets}"
         )
 
     def _color_for_detection(
@@ -280,6 +304,44 @@ class Win32Overlay:
         dist = math.hypot(tx - cx, ty - cy)
         t = dist / max_dist if max_dist > 0 else 1.0
         return _rgb_to_hex(_lerp_rgb(self._color_near, self._color_far, t))
+
+    def _draw_trails(self, canvas, dets, det_colors) -> None:
+        """Append each tracked target's center to its history and draw the path.
+
+        Keyed by track_id, so a trail only persists while its target is tracked;
+        untracked detections (track_id < 0) are skipped.
+        """
+        new_pts: Dict[int, list] = {}
+        for det, color in zip(dets, det_colors):
+            tid = det.track_id
+            if tid < 0:
+                continue
+            cx = (det.x1 + det.x2) / 2.0
+            cy = (det.y1 + det.y2) / 2.0
+            hist = self._trail_pts.get(tid, [])
+            hist = hist[-(self._trail_len - 1):] + [(cx, cy)] if self._trail_len > 1 else [(cx, cy)]
+            new_pts[tid] = hist
+            if len(hist) > 1:
+                flat = [c for pt in hist for c in pt]
+                canvas.create_line(
+                    *flat, fill=color, width=max(1, self._center_line_width), smooth=True
+                )
+        self._trail_pts = new_pts
+
+    def _draw_box(self, canvas, x1, y1, x2, y2, color: str) -> None:
+        th = self._box_thickness
+        if self._box_fill:
+            canvas.create_rectangle(x1, y1, x2, y2, outline="", fill=color, stipple="gray12")
+        if self._box_style == "corners":
+            L = self._box_corner_len
+            for px, py, sx, sy in (
+                (x1, y1, 1, 1), (x2, y1, -1, 1), (x2, y2, -1, -1), (x1, y2, 1, -1),
+            ):
+                canvas.create_line(px, py, px + sx * L, py, fill=color, width=th)
+                canvas.create_line(px, py, px, py + sy * L, fill=color, width=th)
+        else:
+            dash = (6, 4) if self._box_style == "dashed" else ()
+            canvas.create_rectangle(x1, y1, x2, y2, outline=color, width=th, dash=dash)
 
     def _run_ui(self, width: int, height: int, left: int, top: int) -> None:
         root = tk.Tk()
@@ -337,28 +399,49 @@ class Win32Overlay:
             if max_dist is None or max_dist <= 0:
                 max_dist = math.hypot(cx, cy)
 
-            # Assign each detection a unique palette color by index.
+            # Color by stable track id (no per-frame flicker as detections
+            # reorder); fall back to list index for untracked detections.
             pal = self._det_palette
-            det_colors = [pal[i % len(pal)] for i in range(len(dets))]
+            det_colors = [
+                pal[(d.track_id if d.track_id >= 0 else i) % len(pal)]
+                for i, d in enumerate(dets)
+            ]
+
+            if self._trails:
+                self._draw_trails(canvas, dets, det_colors)
+            elif self._trail_pts:
+                self._trail_pts = {}
 
             if self._show_center_lines:
-                # Dashed lines from screen center to each corner of every box.
+                # Lines from screen center toward each box (style/dash/arrow tunable).
+                dash = (6, 12) if self._center_line_dashed else ()
+                arrow = "last" if self._center_line_arrow else "none"
                 for det, color in zip(dets, det_colors):
-                    for corner in (
-                        (det.x1, det.y1),
-                        (det.x2, det.y1),
-                        (det.x2, det.y2),
-                        (det.x1, det.y2),
-                    ):
+                    if self._center_line_style == "target":
+                        targets = (_target_point(det, self._center_line_target),)
+                    else:
+                        targets = (
+                            (det.x1, det.y1), (det.x2, det.y1),
+                            (det.x2, det.y2), (det.x1, det.y2),
+                        )
+                    for tx, ty in targets:
                         canvas.create_line(
-                            cx, cy,
-                            corner[0], corner[1],
+                            cx, cy, tx, ty,
                             fill=color,
                             width=self._center_line_width,
-                            dash=(6, 12),
-                            arrow="last",
+                            dash=dash,
+                            arrow=arrow,
                             arrowshape=(8, 10, 3),
                         )
+
+            if self._crosshair:
+                # Static center crosshair with an adjustable center gap.
+                g, s, w = self._crosshair_gap, self._crosshair_size, self._center_line_width
+                col = self._crosshair_hex
+                canvas.create_line(cx - g - s, cy, cx - g, cy, fill=col, width=w)
+                canvas.create_line(cx + g, cy, cx + g + s, cy, fill=col, width=w)
+                canvas.create_line(cx, cy - g - s, cx, cy - g, fill=col, width=w)
+                canvas.create_line(cx, cy + g, cx, cy + g + s, fill=col, width=w)
 
             if self._proximity_flash and dets:
                 # Flash a red screen border while a box is near the center.
@@ -376,19 +459,12 @@ class Win32Overlay:
                         bw / 2,
                         width - bw / 2,
                         height - bw / 2,
-                        outline="#ff0000",
+                        outline=self._proximity_hex,
                         width=bw,
                     )
 
             for det, color in zip(dets, det_colors):
-                canvas.create_rectangle(
-                    det.x1,
-                    det.y1,
-                    det.x2,
-                    det.y2,
-                    outline=color,
-                    width=self._box_thickness,
-                )
+                self._draw_box(canvas, det.x1, det.y1, det.x2, det.y2, color)
                 if self._show_labels or self._show_confidence:
                     parts = []
                     if self._show_labels:
@@ -401,7 +477,7 @@ class Win32Overlay:
                         text=" ".join(parts),
                         fill=color,
                         anchor="sw",
-                        font=("Consolas", 10, "bold"),
+                        font=("Consolas", self._label_font_size, "bold"),
                     )
             if self._magnifier and (not self._magnifier_hold_rmb or _rmb_down()):
                 self._draw_magnifier(canvas)
@@ -419,7 +495,7 @@ class Win32Overlay:
                     8,
                     6,
                     text=self._fps_text(len(dets)),
-                    fill="#00ff88",
+                    fill=self._fps_hex,
                     anchor="nw",
                     font=("Consolas", 11, "bold"),
                 )

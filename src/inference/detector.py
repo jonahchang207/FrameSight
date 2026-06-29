@@ -19,6 +19,7 @@ class Detection:
     confidence: float
     class_id: int
     label: str
+    track_id: int = -1  # stable per-target id from the tracker; -1 = untracked
 
 
 class YoloDetector:

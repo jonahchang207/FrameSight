@@ -127,6 +127,7 @@ def main() -> int:
             color_far=_tuple_rgb(overlay_cfg.get("color_far", [0, 255, 128])),
             distance_max_px=overlay_cfg.get("distance_max_px"),
         )
+        hud_server.load_saved(overlay)  # restore any HUD tweaks from last run
         overlay.show()
         hud_server.start(overlay)
 

@@ -51,6 +51,7 @@ class _Track:
     class_id: int
     label: str
     last_t: float      # timestamp of last update (perf_counter seconds)
+    id: int = 0        # stable identity, carried onto the predicted Detection
     misses: int = 0
 
     def extrapolate(self, dt: float) -> tuple[float, float]:
@@ -97,6 +98,7 @@ class ForwardPredictor:
         self.min_speed_px = max(0.0, min_speed_px)
         self.max_extrapolation = max(0.0, max_extrapolation_ms) / 1000.0
         self._tracks: List[_Track] = []
+        self._next_id = 0
 
     def update(self, detections: List[Detection], now: float) -> None:
         """Fold a fresh batch of detections in and refresh velocity estimates."""
@@ -139,11 +141,13 @@ class ForwardPredictor:
         for di, ((cx, cy, w, h), det) in enumerate(dets):
             if di in matched_dets:
                 continue
+            tid = self._next_id
+            self._next_id += 1
             self._tracks.append(
                 _Track(
                     cx=cx, cy=cy, w=w, h=h, vx=0.0, vy=0.0,
                     confidence=det.confidence, class_id=det.class_id,
-                    label=det.label, last_t=now,
+                    label=det.label, last_t=now, id=tid,
                 )
             )
 
@@ -168,6 +172,7 @@ class ForwardPredictor:
                     confidence=track.confidence,
                     class_id=track.class_id,
                     label=track.label,
+                    track_id=track.id,
                 )
             )
         return out

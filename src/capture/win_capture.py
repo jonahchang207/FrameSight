@@ -27,15 +27,32 @@ class WinScreenCapture:
         target_fps: int = 165,
     ) -> None:
         # dxcam output_idx is 0-based; config uses 1-based monitor_index
-        output_idx = max(0, monitor_index - 1)
-        self._camera = dxcam.create(output_idx=output_idx, output_color="BGR")
+        self._output_idx = max(0, monitor_index - 1)
         self._region = tuple(region) if region else None
         self._frame_id = 0
         self._target_fps = target_fps
         # Background capture for high refresh (optional; falls back to grab())
         self._use_video_mode = target_fps > 0
+        self._start_camera()
+
+    def _start_camera(self) -> None:
+        self._camera = dxcam.create(output_idx=self._output_idx, output_color="BGR")
         if self._use_video_mode:
-            self._camera.start(target_fps=min(target_fps, 240), video_mode=True)
+            self._camera.start(target_fps=min(self._target_fps, 240), video_mode=True)
+
+    def reinit(self) -> None:
+        """Recreate the dxcam device after a capture failure (display change,
+        device loss, resolution switch). Best-effort; raises if it can't recover."""
+        try:
+            if self._use_video_mode:
+                self._camera.stop()
+        except Exception:
+            pass
+        try:
+            del self._camera
+        except Exception:
+            pass
+        self._start_camera()
 
     def grab(self) -> CaptureFrame:
         if self._region:

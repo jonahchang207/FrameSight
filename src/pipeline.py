@@ -20,6 +20,7 @@ from src.timing import precise_sleep
 class PipelineStats:
     capture_fps: float = 0.0
     inference_fps: float = 0.0
+    inference_ms: float = 0.0   # EMA of detector latency per frame
     frames_captured: int = 0
     frames_inferred: int = 0
 
@@ -93,7 +94,18 @@ class FrameSightPipeline:
 
         while not self._stop.is_set():
             loop_start = time.perf_counter()
-            frame = self._capture.grab()
+            try:
+                frame = self._capture.grab()
+            except Exception as exc:  # noqa: BLE001 — device loss/display change
+                print(f"\nCapture error ({type(exc).__name__}: {exc}) — recovering...")
+                if hasattr(self._capture, "reinit"):
+                    try:
+                        self._capture.reinit()
+                    except Exception:
+                        pass
+                # Back off briefly so a persistent failure doesn't spin the CPU.
+                self._stop.wait(0.5)
+                continue
             cap_count += 1
             with self._frame_lock:
                 self._latest_frame = frame.bgr
@@ -135,7 +147,11 @@ class FrameSightPipeline:
                     break
 
             try:
+                t_pred = time.perf_counter()
                 detections = self._detector.predict(frame.bgr)
+                dt_ms = (time.perf_counter() - t_pred) * 1000.0
+                # EMA so the HUD shows a steady latency, not per-frame jitter.
+                self._stats.inference_ms = 0.2 * dt_ms + 0.8 * self._stats.inference_ms
                 if self._smoother is not None:
                     detections = self._smoother.update(detections)
                 with self._det_lock:

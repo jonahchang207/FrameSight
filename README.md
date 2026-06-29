@@ -46,7 +46,7 @@ If you just want to run FrameSight without touching a terminal:
 - **Per-detection colors** — each detected target gets its own unique color from a 12-color palette, applied to the box, label, and lines simultaneously.
 - **Center-to-corner lines** — dashed lines radiate from the screen center to all four corners of every detection box, one color per target.
 - **Magnifier** — a circular zoomed inset of the screen center that appears **while you hold the right mouse button**. Runs on its own worker thread so box rendering is never blocked.
-- **Live HUD panel** — browser-based control panel at `http://localhost:5000`. Adjust box thickness, colors, magnifier, proximity flash, and more without restarting.
+- **Live HUD panel** — browser-based control panel at `http://localhost:5000`. Adjust box style, colors, lines, crosshair, magnifier, proximity flash, and more without restarting. Hit **Save as Default** to persist every setting across launches (`config/hud_state.json`).
 - **Per-class toggles** — disable a class entirely (e.g. `detect_head: false`) so it's never inferred or drawn.
 - **FPS overlay** — overlay / capture / inference FPS and target count drawn on screen.
 
